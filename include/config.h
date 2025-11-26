@@ -1,3 +1,4 @@
+#define VERSION "v1.1-dev"
 #pragma once
 #include <Arduino.h>
 
