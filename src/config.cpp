@@ -9,16 +9,16 @@
 
 const uint8_t SENSOR_PINS[NUM_SENS] = {
     22, // S0
-    23, // S1
-    24, // S2
-    25, // S3
-    26, // S4
-    27, // S5
-    28, // S6
-    29, // S7
-    30, // S8
-    31, // S9
-    32  // S10
+    28, // S1
+    23, // S2
+    33, // S3
+    24, // S4
+    32, // S5
+    25, // S6
+    31, // S7
+    27, // S8
+    35, // S9
+    34  // S10
 };
 
 /* ----------------------------------------------------
@@ -29,43 +29,52 @@ const uint8_t SENSOR_PINS[NUM_SENS] = {
 
 const WPins WEICHEN_PINS[NUM_WEICHEN] = {
     // pinG, pinA, pinRed, pinRueck, hasRed
-    {40, 41, 255, 33, false}, // W0
-    {42, 43, 255, 34, false}, // W1
-    {44, 45, 255, 35, false}, // W2
-    {46, 47, 255, 36, false}, // W3
-    {52, 53, 255, 37, false}, // W4
-    {A0, A1, 255, 38, false}, // W5
+    {5,  6,  255, 38, false}, // W0
+    {8,  9,  255, 39, false}, // W1
+    {10, 11, 255, 40, false}, // W2
+    {12, 13, 255, 41, false}, // W3
+    {14, 15, 255, 42, false}, // W4
+    {16, 17, 255, 43, false}, // W5
 
-    {A2, A3, A8,  39, true},  // W6
-    {A4, A5, A9,  40, true},  // W7
-    {A6, A7, A10, 41, true},  // W8
-    {A12,A13,A11, 42, true},  // W9
-    {A14,A15, A9, 43, true},  // W10
-    {A6, A7,  A8, 44, true}   // W11
+    {18, 19, A12, 44, true},  // W6
+    {2,  3,  A13, 45, true},  // W7
+    {A0, A1, A14, 46, true},  // W8
+    {A2, A3, A15, 47, true},  // W9
+    {A4 ,A5 , 50, 48, true},  // W10
+    {A6, A7,  50, 49, true}   // W11
 };
 
-/* Grundstellung: alle GERADE (Beispiel) */
+/* Grundstellung:  */
 
 const Richtung WEICHEN_GRUNDSTELLUNG[NUM_WEICHEN] = {
-    GERADE, GERADE, GERADE, GERADE,
-    GERADE, GERADE, GERADE, GERADE,
-    GERADE, GERADE, GERADE, GERADE
+    GERADE,         // W0
+    GERADE,         // W1
+    GERADE,         // W2
+    GERADE,         // W3
+    GERADE,         // W4
+    ABBIEGEN,       // W5
+    ABBIEGEN,       // W6
+    GERADE,         // W7
+    GERADE,         // W8
+    GERADE,         // W9
+    ABBIEGEN,       // W10
+    ABBIEGEN        // W11
 };
 
 /* ----------------------------------------------------
  *  Bahnhöfe (Beispiel-Konfiguration)
  *  Bhf0..Bhf3, wie von dir beschrieben:
- *   Bhf0: Strom A8,  Einfahrtsensor S0, Timerstart S7
- *   Bhf1: Strom A9,  Einfahrtsensor S4, Timerstart S8
- *   Bhf2: Strom A10, Einfahrtsensor S6, Timerstart S9
- *   Bhf3: Strom A11, Einfahrtsensor S6, Timerstart S10
+ *   Bhf0: Strom A8,  Einfahrtsensor S5,  Timerstart S5
+ *   Bhf1: Strom A9,  Einfahrtsensor S3,  Timerstart S3
+ *   Bhf2: Strom A10, Einfahrtsensor S9,  Timerstart S9
+ *   Bhf3: Strom A11, Einfahrtsensor S10, Timerstart S10
  * ---------------------------------------------------- */
 
 const BahnhofConfig BHF_CONFIGS[NUM_BHF] = {
-    { A8,  0,  7,  8000 },  // Bhf0
-    { A9,  4,  8,  8000 },  // Bhf1
-    { A10, 6,  9,  8000 },  // Bhf2
-    { A11, 6, 10,  8000 }   // Bhf3
+    { A8,  32,  32,  8000 },  // Bhf0
+    { A9,  33,  33,  8000 },  // Bhf1
+    { A10, 35,  35,  8000 },  // Bhf2
+    { A11, 34,  34,  8000 }   // Bhf3
 };
 
 /* ----------------------------------------------------
@@ -122,6 +131,13 @@ static const WeichenSchaltSchritt FS2_STEPS[] = {
     { 7, GERADE,   0 }   // immer
 };
 
+// --------- FS2 : Sensor S4 ----------
+
+static const WeichenSchaltSchritt FS3_STEPS[] = {
+    { 2, ABBIEGEN, 0 },  // immer
+    { 3, GERADE,   0 }   // immer
+};
+
 // --------- FS4 : Sensor S8, Reset S10 ----------
 
 static const WeichenSchaltSchritt FS4_STEPS[] = {
@@ -136,6 +152,7 @@ const SteuerungWeichenDefinition STW_DEFS[] = {
     { 0, {3,6}, 2, FS0_STEPS, (uint8_t)(sizeof(FS0_STEPS)/sizeof(FS0_STEPS[0])) },
     { 2, { },   0, FS1_STEPS, (uint8_t)(sizeof(FS1_STEPS)/sizeof(FS1_STEPS[0])) },
     { 4, { },   0, FS2_STEPS, (uint8_t)(sizeof(FS2_STEPS)/sizeof(FS2_STEPS[0])) },
+    { 7, { },   0, FS3_STEPS, (uint8_t)(sizeof(FS3_STEPS)/sizeof(FS3_STEPS[0])) },
     { 8, {10},  1, FS4_STEPS, (uint8_t)(sizeof(FS4_STEPS)/sizeof(FS4_STEPS[0])) }
 };
 

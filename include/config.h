@@ -26,9 +26,9 @@ constexpr uint8_t PIN_I2C_INT    = 48;   // INT-Pin zum ESP32
  *  Modus / LEDs / Taster
  * ---------------------------------------------------- */
 
-constexpr uint8_t PIN_MODUS_TASTER   = 49;
-constexpr uint8_t PIN_LED_AUTOMATIK  = 50;
-constexpr uint8_t PIN_LED_MANUELL    = 51;
+constexpr uint8_t PIN_MODUS_TASTER   = 36;
+constexpr uint8_t PIN_LED_AUTOMATIK  = 4;
+constexpr uint8_t PIN_LED_MANUELL    = 5;
 
 /* ----------------------------------------------------
  *  EEPROM-Bereich
