@@ -7,7 +7,8 @@ Bahnhof::Bahnhof()
   _sensorTimerStart(255),
   _haltezeit(0),
   _timerAktiv(false),
-  _timerStart(0)
+  _timerStart(0),
+  _stromAn(false)
 {}
 
 void Bahnhof::configure(const BahnhofConfig &cfg, uint8_t index) {
@@ -21,12 +22,14 @@ void Bahnhof::configure(const BahnhofConfig &cfg, uint8_t index) {
 void Bahnhof::begin() {
     if (_stromPin == 255) return;
     pinMode(_stromPin, OUTPUT);
-    digitalWrite(_stromPin, HIGH); // Relais aus (low-aktiv)
+    digitalWrite(_stromPin, HIGH); // Relais aus (low-aktiv) => Strom AUS
+    _stromAn = false;
 }
 
 void Bahnhof::setStrom(bool an) {
     if (_stromPin == 255) return;
     digitalWrite(_stromPin, an ? LOW : HIGH); // low-aktiv
+    _stromAn = an;
     pushEvent(EVT_BHF, _index, an ? 1 : 0);
 }
 

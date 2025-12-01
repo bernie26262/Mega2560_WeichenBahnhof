@@ -14,6 +14,9 @@ public:
     void handleSensor(uint8_t sIdx, Betriebsmodus mode);
     void update(Betriebsmodus mode);
 
+    // NEU: für Full-Snapshot
+    bool stromIstAn() const { return _stromAn; }
+
 private:
     uint8_t _index;
     uint8_t _stromPin;
@@ -23,6 +26,8 @@ private:
 
     bool _timerAktiv;
     unsigned long _timerStart;
+
+    bool _stromAn;   // NEU: merkt sich aktuellen Stromzustand
 
     void setStrom(bool an);
 };

@@ -1,4 +1,5 @@
 #include "SteuerungWeichen.h"
+#include "EventQueue.h"   // NEU: für EVT_FS_COUNTER
 
 SteuerungWeichen::SteuerungWeichen(
     Weiche* weichenArray,
@@ -50,6 +51,9 @@ void SteuerungWeichen::handleRouteTrigger(uint8_t fsIndex) {
     DBGLN(String("[StW] FS") + fsIndex +
           " Trigger, Counter=" + String(c));
 
+    // optionales Delta-Event für FS-Counter (8-bit Anzeige reicht meistens)
+    pushEvent(EVT_FS_COUNTER, fsIndex, (uint8_t)(c & 0xFF));
+
     for (uint8_t i = 0; i < def.numSteps; i++) {
         const auto& step = def.steps[i];
 
@@ -74,5 +78,15 @@ void SteuerungWeichen::handleRouteTrigger(uint8_t fsIndex) {
 
         _weichen[wid].ziel = ziel;
         _weichen[wid].schalten();
+    }
+}
+
+void SteuerungWeichen::getCounters(uint16_t* out, uint8_t max) const {
+    uint8_t n = (_numFS < max) ? _numFS : max;
+    for (uint8_t i = 0; i < n; i++) {
+        out[i] = _counter[i];
+    }
+    for (uint8_t i = n; i < max; i++) {
+        out[i] = 0;
     }
 }

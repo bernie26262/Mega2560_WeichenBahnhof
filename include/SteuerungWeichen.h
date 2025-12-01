@@ -32,6 +32,9 @@ public:
     void update() {} // aktuell keine Hintergrundlogik
     void resetCounter(uint8_t fsIndex);
 
+    // NEU: Snapshot der Counter für Full-Transfer
+    void getCounters(uint16_t* out, uint8_t max) const;
+
 private:
     static constexpr uint8_t MAX_FS = 16;
 
