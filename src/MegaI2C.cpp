@@ -1,79 +1,91 @@
+// src/MegaI2C.cpp
 #include "MegaI2C.h"
-#include <Wire.h>
 
+#include <Wire.h>
 #include "config.h"
 #include "EventQueue.h"
 #include "Weiche.h"
 #include "Bahnhof.h"
-#include "SteuerungWeichen.h"
 #include "Modus.h"
-#include "debug.h"
+#include "i2c_packets.h"
 
-// Globale Objekte kommen aus main.cpp
-extern Weiche           weichen[NUM_WEICHEN];
-extern Bahnhof          bahnhoefe[NUM_BHF];
-extern Modus            modusController;
-extern SteuerungWeichen stwController;
+// Diese Objekte kommen aus main.cpp
+extern Weiche weichen[NUM_WEICHEN];
+extern Bahnhof bahnhoefe[NUM_BHF];
+extern Modus modusController;
 
-// Protokoll-Konstanten
-static const uint8_t PROTO_VERSION = 1;
+// Protokollversion (kannst du später erhöhen, wenn sich das Layout ändert)
+static constexpr uint8_t PROTO_VERSION = 1;
 
-enum MsgType : uint8_t {
-    MSG_FULL  = 1,
-    MSG_DELTA = 2
-};
+// DELTA-Gruppierung "light": max. so viele Events pro Paket,
+// dass wir sicher im 32-Byte-I2C-Buffer bleiben.
+static constexpr uint8_t MAX_DELTA_EVENTS_PER_PACKET = 8;
 
-enum CmdType : uint8_t {
-    CMD_GET_FULL  = 1,
-    CMD_GET_DELTA = 2
-};
+// Letztes vom ESP empfangenes Kommando
+static volatile uint8_t g_lastCommand = I2C_CMD_NOP;
 
-// Letzter vom Master gesetzter Befehl
-static volatile uint8_t g_lastCmd = CMD_GET_DELTA;
+// --- Hilfsfunktionen -------------------------------------------------
 
-// I2C-Callbacks
-static void onI2CReceive(int len);
-static void onI2CRequest();
-
-// Hilfsfunktionen
-static void buildFullSnapshot(uint8_t* buf, size_t& len);
-static void buildDeltaBatch(uint8_t* buf, size_t& len);
-
-void megaI2C_begin() {
-    pinMode(PIN_I2C_INT, OUTPUT);
-    digitalWrite(PIN_I2C_INT, HIGH);  // INT inaktiv (HIGH)
-
-    Wire.begin(I2C_SLAVE_ADDR);       // als Slave
-    Wire.onReceive(onI2CReceive);
-    Wire.onRequest(onI2CRequest);
-
-    DBGLN(String("[MegaI2C] gestartet, Addr=0x") + String(I2C_SLAVE_ADDR, HEX));
-}
-
-void megaI2C_update() {
-    // INT-Pin low, wenn Events in der Queue sind
-    static bool intLow = false;
-
-    if (eventCount() > 0 && !intLow) {
-        digitalWrite(PIN_I2C_INT, LOW); // Data ready
-        intLow = true;
-    } else if (eventCount() == 0 && intLow) {
-        digitalWrite(PIN_I2C_INT, HIGH); // nichts mehr zu senden
-        intLow = false;
+// Liefert Bitmaske der aktuellen Weichenstellung aus Rückmeldern:
+// 0 = GERADE, 1 = ABBIEGEN, bitweise W0..W11
+static void buildWeichenBits(uint8_t &lo, uint8_t &hi) {
+    uint16_t bits = 0;
+    for (uint8_t i = 0; i < NUM_WEICHEN; i++) {
+        bool abzweig = weichen[i].istAbzweig();
+        if (abzweig) {
+            bits |= (1u << i);
+        }
     }
+    lo = bits & 0xFF;
+    hi = (bits >> 8) & 0xFF;
 }
 
-// ------------------------------------------------------
-// I2C-Callbacks
-// ------------------------------------------------------
+// Liefert Bitmaske der Bahnhofs-Stromzustände
+// Wir lesen direkt die Relais-Pins aus BHF_CONFIGS:
+//   LOW = Relais AN = Strom AUS? oder AN?
+// In deiner bisherigen Logik (Bahnhof::setStrom):
+//   digitalWrite(_stromPin, an ? LOW : HIGH); // low-aktiv
+// → LOW  = Strom AN
+// → HIGH = Strom AUS
+static uint8_t buildBahnhofBits() {
+    uint8_t bits = 0;
+    for (uint8_t i = 0; i < NUM_BHF; i++) {
+        uint8_t pin = BHF_CONFIGS[i].stromPin;
+        if (pin == 255) continue;
+        pinMode(pin, INPUT_PULLUP); // zur Sicherheit (sollte bereits OUTPUT sein)
+        int level = digitalRead(pin);
+        bool stromAn = (level == LOW); // low-aktiv = Strom AN
+        if (stromAn) {
+            bits |= (1u << i);
+        }
+    }
+    return bits;
+}
 
-static void onI2CReceive(int len) {
-    if (len <= 0) return;
+// Befüllt FullState-Payload mit aktuellem Zustand
+static void buildFullState(I2C_FullStatePayload &p) {
+    p.protoVersion = PROTO_VERSION;
 
+    p.numWeichen = NUM_WEICHEN;
+    buildWeichenBits(p.weichenStateLo, p.weichenStateHi);
+
+    p.numBahnhof   = NUM_BHF;
+    p.bhfStromBits = buildBahnhofBits();
+
+    // Modus: 0 = AUTOMATIK, 1 = MANUELL (entspricht deinem enum)
+    p.modus = static_cast<uint8_t>(modusController.current());
+}
+
+// --- I2C ISR-Callbacks -----------------------------------------------
+
+static void onI2CReceive(int numBytes) {
+    if (numBytes <= 0) return;
+
+    // Erstes Byte ist das Kommando
     uint8_t cmd = Wire.read();
-    g_lastCmd = cmd;
+    g_lastCommand = cmd;
 
-    // Rest evtl. verwerfen
+    // Übrige Bytes (falls vorhanden) ignorieren wir vorerst
     while (Wire.available()) {
         (void)Wire.read();
     }
@@ -81,120 +93,88 @@ static void onI2CReceive(int len) {
 
 static void onI2CRequest() {
     uint8_t buf[32];
-    size_t  len = 0;
+    uint8_t idx = 0;
 
-    if (g_lastCmd == CMD_GET_FULL) {
-        buildFullSnapshot(buf, len);
+    I2C_Command cmd = static_cast<I2C_Command>(g_lastCommand);
+
+    if (cmd == I2C_CMD_GET_FULL) {
+        // --- FULL Snapshot ------------------------------------------------
+        I2C_FullStatePayload payload;
+        buildFullState(payload);
+
+        buf[0] = I2C_PKT_FULL;
+        buf[1] = sizeof(I2C_FullStatePayload); // payloadLen
+
+        // Payload direkt dahinter kopieren
+        memcpy(&buf[2], &payload, sizeof(I2C_FullStatePayload));
+        idx = 2 + sizeof(I2C_FullStatePayload);
+
+    } else if (cmd == I2C_CMD_GET_DELTA) {
+        // --- DELTA: Events gruppiert (light) -----------------------------
+
+        buf[0] = I2C_PKT_DELTA;
+        buf[1] = 0;       // payloadLen (placeholder)
+        buf[2] = 0;       // numEvents (wird am Ende gesetzt)
+        idx    = 3;
+
+        uint8_t numEvents = 0;
+        Event ev;
+
+        while (numEvents < MAX_DELTA_EVENTS_PER_PACKET && popEvent(ev)) {
+            buf[idx++] = ev.type;
+            buf[idx++] = ev.id;
+            buf[idx++] = ev.value;
+            numEvents++;
+        }
+
+        uint8_t payloadLen = 1 + numEvents * 3; // 1 für numEvents + 3 pro Event
+        buf[1] = payloadLen;
+        buf[2] = numEvents;
+        idx    = 2 + payloadLen;
+
+        // Wenn du willst, kannst du auch bei numEvents==0 auf I2C_PKT_NONE
+        // umschwenken; aktuell schicken wir DELTA mit 0 Events.
+
+    } else if (cmd == I2C_CMD_GET_META) {
+        // Noch nicht wirklich genutzt, Beispiel-Payload
+        buf[0] = I2C_PKT_META;
+        buf[1] = 2;  // z.B. 2 Bytes Payload
+        buf[2] = PROTO_VERSION;
+        buf[3] = NUM_WEICHEN; // als simple Info
+        idx = 4;
+
     } else {
-        // Default: DELTA
-        buildDeltaBatch(buf, len);
+        // Unbekanntes Kommando
+        buf[0] = I2C_PKT_ERROR;
+        buf[1] = 1;
+        buf[2] = 0x01; // "unknown command"
+        idx = 3;
     }
 
-    Wire.write(buf, (uint8_t)len);
+    Wire.write(buf, idx);
 }
 
-// ------------------------------------------------------
-// Full-Snapshot bauen
-// ------------------------------------------------------
-//
-// Layout (max. 32 Bytes):
-//  [0]  = PROTO_VERSION
-//  [1]  = MSG_FULL
-//  [2]  = Weichen-Bits low  (W0..W7)
-//  [3]  = Weichen-Bits high (W8..W11 in lower Bits)
-//  [4]  = BHF-Bits (B0..B3)
-//  [5]  = Modus (0=AUTOMATIK,1=MANUELL)
-//  [6]  = numFS
-//  [7+] = für jede FS: counter low, counter high
-//
-// Bei deinen aktuellen Werten bleibt das deutlich < 32 Bytes.
-//
+// --- Öffentliche API --------------------------------------------------
 
-static void buildFullSnapshot(uint8_t* buf, size_t& len) {
-    len = 0;
-    buf[len++] = PROTO_VERSION;
-    buf[len++] = MSG_FULL;
+void megaI2C_begin() {
+    pinMode(PIN_I2C_INT, OUTPUT);
+    digitalWrite(PIN_I2C_INT, LOW); // zunächst kein DataReady
 
-    // Weichen-Bits:
-    // Bit i = 1 wenn Weiche i in Abzweig-Stellung (laut Rückmelder)
-    uint16_t wBits = 0;
-    for (uint8_t i = 0; i < NUM_WEICHEN; i++) {
-        bool abzweig = weichen[i].istAbzweig();
-        if (abzweig) {
-            wBits |= (1u << i);
-        }
-    }
-    buf[len++] = (uint8_t)(wBits & 0xFF);
-    buf[len++] = (uint8_t)(wBits >> 8);
+    // Mega als I2C-Slave mit Adresse I2C_SLAVE_ADDR
+    Wire.begin(I2C_SLAVE_ADDR);
+    Wire.onReceive(onI2CReceive);
+    Wire.onRequest(onI2CRequest);
 
-    // Bahnhofs-Strom-Bits:
-    // Bit i = 1 wenn Bahnhof i Strom AN
-    uint8_t bBits = 0;
-    for (uint8_t i = 0; i < NUM_BHF; i++) {
-        if (bahnhoefe[i].stromIstAn()) {
-            bBits |= (1u << i);
-        }
-    }
-    buf[len++] = bBits;
-
-    // Modus
-    buf[len++] = (uint8_t)modusController.current();
-
-    // Fahrstraßen-Counter
-    uint16_t counters[16];
-    stwController.getCounters(counters, 16);
-
-    buf[len++] = NUM_STW_FS;   // Anzahl gültiger Counter
-
-    for (uint8_t i = 0; i < NUM_STW_FS; i++) {
-        if (len + 2 >= 32) break; // Sicherheit, falls später erweitert wird
-        uint16_t c = counters[i];
-        buf[len++] = (uint8_t)(c & 0xFF);
-        buf[len++] = (uint8_t)(c >> 8);
-    }
+    g_lastCommand = I2C_CMD_NOP;
 }
 
-// ------------------------------------------------------
-// Delta-Batch bauen (Gruppierung light)
-// ------------------------------------------------------
-//
-// Layout:
-//  [0] = PROTO_VERSION
-//  [1] = MSG_DELTA
-//  [2] = N (Anzahl Events)
-//  dann N * 3 Bytes:
-//    [type, id, value] (wie Event-Struct)
-//
-// Maximal 8 Events pro Batch => 3 + 8*3 = 27 Bytes < 32.
-//
-
-static void buildDeltaBatch(uint8_t* buf, size_t& len) {
-    len = 0;
-    buf[len++] = PROTO_VERSION;
-    buf[len++] = MSG_DELTA;
-
-    uint8_t countIndex = (uint8_t)len;
-    buf[len++] = 0; // Platzhalter für N
-
-    static const uint8_t MAX_EVENTS_PER_BATCH = 8;
-
-    uint8_t n = 0;
-    Event ev;
-
-    while (n < MAX_EVENTS_PER_BATCH && eventCount() > 0) {
-        if (!popEvent(ev)) break;
-
-        if (len + 3 >= 32) {
-            // sollte eigentlich nicht passieren, aber zur Sicherheit
-            break;
-        }
-
-        buf[len++] = ev.type;
-        buf[len++] = ev.id;
-        buf[len++] = ev.value;
-
-        n++;
+void megaI2C_update() {
+    // DataReady-Pin: HIGH, solange Events in der Queue sind
+    if (eventCount() > 0) {
+        digitalWrite(PIN_I2C_INT, HIGH);
+    } else {
+        digitalWrite(PIN_I2C_INT, LOW);
     }
 
-    buf[countIndex] = n;
+    // hier könnten später weitere Dinge passieren (Timeouts, Statistiken, ...)
 }
