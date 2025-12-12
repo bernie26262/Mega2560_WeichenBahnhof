@@ -1,47 +1,30 @@
 #pragma once
 #include <Arduino.h>
-#include "EventQueue.h"
-#include "debug.h"
+#include "pins_mega1.h"
 
-class SensorHub {
+// Zug-Entprellzeit pro Sensor (erste Achse zählt)
+constexpr uint32_t SENSOR_TRAIN_DEBOUNCE_MS = 4000;
+
+class SensorHub
+{
 public:
-    SensorHub();
+    void begin();
+    void update();
 
-    void begin(const uint8_t* pins, uint8_t count, unsigned long debounceMs);
-
-    template<typename F>
-    void update(F onTrigger) {
-        if (_count == 0) return;
-        unsigned long now = millis();
-
-        for (uint8_t i = 0; i < _count; i++) {
-            bool raw = (digitalRead(_pins[i]) == LOW); // LOW-aktiv
-            if (raw) {
-                if (!_locked[i]) {
-                    _locked[i]   = true;
-                    _lastTime[i] = now;
-
-                    DBGLN(String("Sensor S") + i + " TRIGGER");
-                    pushEvent(EVT_SENSOR, i, 1);
-                    onTrigger(i);
-                } else {
-                    _lastTime[i] = now;
-                }
-            }
-
-            if (_locked[i] && (now - _lastTime[i] >= _debounceMs)) {
-                _locked[i] = false;
-            }
-        }
-    }
+    bool isActive(uint8_t index) const;
+    uint32_t changedMask() const;
+    uint16_t buildKontaktBits() const;
 
 private:
-    static constexpr uint8_t MAX_SENS = 32;
+    uint32_t m_stateMask   = 0;
+    uint32_t m_changedMask = 0;
 
-    uint8_t  _pins[MAX_SENS];
-    uint8_t  _count;
-    unsigned long _debounceMs;
+    struct DebounceState
+    {
+        bool     blocked       = false;  // Sensor gesperrt (Zug läuft)
+        bool     trainPresent  = false;  // aktuell belegt
+        uint32_t unblockAtMs   = 0;      // Sperrzeit-Ende
+    };
 
-    bool    _locked[MAX_SENS];
-    unsigned long _lastTime[MAX_SENS];
+    DebounceState m_db[NUM_SENSORS];
 };

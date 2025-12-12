@@ -1,0 +1,414 @@
+src\MegaI2C.cpp:6:10: fatal error: core/proto_common.h: No such file or directory
+ #include "core/proto_common.h"
+          ^~~~~~~~~~~~~~~~~~~~~
+In file included from include/BahnhofController.h:3:0,
+                 from src\BahnhofController.cpp:1:
+include/SensorHub.h:45:36: error: 'MEGA1_MAX_SENS' was not declared in this scope
+     static constexpr uint8_t MAX = MEGA1_MAX_SENS; // = 24
+                                    ^~~~~~~~~~~~~~
+compilation terminated.
+include/SensorHub.h:45:36: note: suggested alternative: 'MEGA1_I2C_ADDRESS'
+     static constexpr uint8_t MAX = MEGA1_MAX_SENS; // = 24
+                                    ^~~~~~~~~~~~~~
+                                    MEGA1_I2C_ADDRESS
+include/SensorHub.h:47:28: error: size of array 'm_typ' is not an integral constant-expression
+     SensorTyp     m_typ[MAX];
+                            ^
+include/SensorHub.h:48:30: error: size of array 'm_pulse' is not an integral constant-expression
+     PulseSensor   m_pulse[MAX];
+                              ^
+include/SensorHub.h:49:32: error: size of array 'm_kontakt' is not an integral constant-expression
+     SensorKontakt m_kontakt[MAX];
+                                ^
+include/SensorHub.h:51:35: error: size of array 'm_lastActive' is not an integral constant-expression
+     bool          m_lastActive[MAX];
+                                   ^
+include/SensorHub.h:52:37: error: size of array 'm_triggerCount' is not an integral constant-expression
+     uint16_t      m_triggerCount[MAX];
+                                     ^
+In file included from include/Bahnhof.h:4:0,
+                 from src\Bahnhof.cpp:1:
+include/config.h:11:44: error: 'MEGA1_MAX_SENS' was not declared in this scope
+ static constexpr uint8_t MAX_SENSORS     = MEGA1_MAX_SENS;   // 24
+                                            ^~~~~~~~~~~~~~
+include/config.h:11:44: note: suggested alternative: 'MEGA1_I2C_ADDRESS'
+ static constexpr uint8_t MAX_SENSORS     = MEGA1_MAX_SENS;   // 24
+                                            ^~~~~~~~~~~~~~
+                                            MEGA1_I2C_ADDRESS
+In file included from src\Bahnhof.cpp:1:0:
+include/Bahnhof.h:11:26: error: 'BahnhofConfig' does not name a type; did you mean 'Bahnhof'?
+     void configure(const BahnhofConfig &cfg, uint8_t index);
+                          ^~~~~~~~~~~~~
+                          Bahnhof
+include/Bahnhof.h:14:44: error: 'Betriebsmodus' has not been declared
+     void handleSensor(uint8_t sensorIndex, Betriebsmodus mode);
+                                            ^~~~~~~~~~~~~
+include/Bahnhof.h:15:17: error: 'Betriebsmodus' has not been declared
+     void update(Betriebsmodus mode);
+                 ^~~~~~~~~~~~~
+src\Bahnhof.cpp:14:31: error: 'BahnhofConfig' does not name a type; did you mean 'Bahnhof'?
+ void Bahnhof::configure(const BahnhofConfig &cfg, uint8_t index) {
+                               ^~~~~~~~~~~~~
+                               Bahnhof
+src\Bahnhof.cpp: In member function 'void Bahnhof::configure(const int&, uint8_t)':
+src\Bahnhof.cpp:16:29: error: request for member 'stromPin' in 'cfg', which is of non-class type 'const int'
+     _stromPin         = cfg.stromPin;
+                             ^~~~~~~~
+src\Bahnhof.cpp:17:29: error: request for member 'sensorEinfahrt' in 'cfg', which is of non-class type 'const int'
+     _sensorEinfahrt   = cfg.sensorEinfahrt;
+                             ^~~~~~~~~~~~~~
+src\Bahnhof.cpp:18:29: error: request for member 'sensorTimerStart' in 'cfg', which is of non-class type 'const int'
+     _sensorTimerStart = cfg.sensorTimerStart;
+                             ^~~~~~~~~~~~~~~~
+src\Bahnhof.cpp:19:29: error: request for member 'haltezeitMs' in 'cfg', which is of non-class type 'const int'
+     _haltezeit        = cfg.haltezeitMs;
+                             ^~~~~~~~~~~
+src\Bahnhof.cpp: At global scope:
+src\Bahnhof.cpp:39:42: error: 'Betriebsmodus' has not been declared
+ void Bahnhof::handleSensor(uint8_t sIdx, Betriebsmodus mode) {
+                                          ^~~~~~~~~~~~~
+src\Bahnhof.cpp: In member function 'void Bahnhof::handleSensor(uint8_t, int)':
+src\Bahnhof.cpp:40:17: error: 'MOD_AUTOMATIK' was not declared in this scope
+     if (mode != MOD_AUTOMATIK) return;
+                 ^~~~~~~~~~~~~
+src\Bahnhof.cpp: At global scope:
+src\Bahnhof.cpp:56:22: error: variable or field 'update' declared void
+ void Bahnhof::update(Betriebsmodus mode) {
+                      ^~~~~~~~~~~~~
+src\Bahnhof.cpp:56:22: error: 'Betriebsmodus' was not declared in this scope
+In file included from include/Modus.h:3:0,
+                 from src\Modus.cpp:1:
+include/config.h:11:44: error: 'MEGA1_MAX_SENS' was not declared in this scope
+ static constexpr uint8_t MAX_SENSORS     = MEGA1_MAX_SENS;   // 24
+                                            ^~~~~~~~~~~~~~
+include/config.h:11:44: note: suggested alternative: 'MEGA1_I2C_ADDRESS'
+ static constexpr uint8_t MAX_SENSORS     = MEGA1_MAX_SENS;   // 24
+                                            ^~~~~~~~~~~~~~
+                                            MEGA1_I2C_ADDRESS
+In file included from src\Modus.cpp:1:0:
+include/Modus.h:15:5: error: 'Betriebsmodus' does not name a type
+     Betriebsmodus current() const { return _state; }
+     ^~~~~~~~~~~~~
+include/Modus.h:16:20: error: 'Betriebsmodus' has not been declared
+     void forceMode(Betriebsmodus m);
+                    ^~~~~~~~~~~~~
+include/Modus.h:19:5: error: 'Betriebsmodus' does not name a type
+     Betriebsmodus _state;
+     ^~~~~~~~~~~~~
+include/Modus.h:43:19: error: 'Betriebsmodus' has not been declared
+     void setModus(Betriebsmodus m);
+                   ^~~~~~~~~~~~~
+*** [.pio\build\megaatmega2560\src\MegaI2C.cpp.o] Error 1
+src\Modus.cpp: In constructor 'Modus::Modus(uint8_t, uint8_t, uint8_t, Weiche*, uint8_t)':
+src\Modus.cpp:5:3: error: class 'Modus' does not have any field named '_state'
+ : _state(MOD_AUTOMATIK),
+   ^~~~~~
+src\Modus.cpp:5:10: error: 'MOD_AUTOMATIK' was not declared in this scope
+ : _state(MOD_AUTOMATIK),
+          ^~~~~~~~~~~~~
+*** [.pio\build\megaatmega2560\src\Bahnhof.cpp.o] Error 1
+*** [.pio\build\megaatmega2560\src\BahnhofController.cpp.o] Error 1
+src\Modus.cpp: At global scope:
+src\Modus.cpp:34:22: error: variable or field 'setModus' declared void
+ void Modus::setModus(Betriebsmodus m) {
+                      ^~~~~~~~~~~~~
+src\Modus.cpp:34:22: error: 'Betriebsmodus' was not declared in this scope
+src\Modus.cpp:41:23: error: variable or field 'forceMode' declared void
+ void Modus::forceMode(Betriebsmodus m) {
+                       ^~~~~~~~~~~~~
+src\Modus.cpp:41:23: error: 'Betriebsmodus' was not declared in this scope
+src\Modus.cpp: In member function 'void Modus::handleClick()':
+src\Modus.cpp:47:13: error: '_state' was not declared in this scope
+         if (_state == MOD_AUTOMATIK) {
+             ^~~~~~
+src\Modus.cpp:47:13: note: suggested alternative: 'update'
+         if (_state == MOD_AUTOMATIK) {
+             ^~~~~~
+             update
+src\Modus.cpp:47:23: error: 'MOD_AUTOMATIK' was not declared in this scope
+         if (_state == MOD_AUTOMATIK) {
+                       ^~~~~~~~~~~~~
+src\Modus.cpp:48:22: error: 'MOD_MANUELL' was not declared in this scope
+             setModus(MOD_MANUELL);
+                      ^~~~~~~~~~~
+src\Modus.cpp:55:18: error: 'MOD_AUTOMATIK' was not declared in this scope
+         setModus(MOD_AUTOMATIK);
+                  ^~~~~~~~~~~~~
+src\Modus.cpp: In member function 'void Modus::recoveryUpdate()':
+src\Modus.cpp:105:33: error: '_state' was not declared in this scope
+         digitalWrite(_ledAuto, (_state == MOD_AUTOMATIK) ? HIGH : LOW);
+                                 ^~~~~~
+src\Modus.cpp:105:33: note: suggested alternative: 'update'
+         digitalWrite(_ledAuto, (_state == MOD_AUTOMATIK) ? HIGH : LOW);
+                                 ^~~~~~
+                                 update
+src\Modus.cpp:105:43: error: 'MOD_AUTOMATIK' was not declared in this scope
+         digitalWrite(_ledAuto, (_state == MOD_AUTOMATIK) ? HIGH : LOW);
+                                           ^~~~~~~~~~~~~
+In file included from include/SteuerungWeichen.h:4:0,
+                 from src\SteuerungWeichen.cpp:1:
+include/config.h:11:44: error: 'MEGA1_MAX_SENS' was not declared in this scope
+ static constexpr uint8_t MAX_SENSORS     = MEGA1_MAX_SENS;   // 24
+                                            ^~~~~~~~~~~~~~
+src\Modus.cpp:113:5: error: 'Richtung' was not declared in this scope
+     Richtung r;
+     ^~~~~~~~
+include/config.h:11:44: note: suggested alternative: 'MEGA1_I2C_ADDRESS'
+ static constexpr uint8_t MAX_SENSORS     = MEGA1_MAX_SENS;   // 24
+                                            ^~~~~~~~~~~~~~
+                                            MEGA1_I2C_ADDRESS
+src\Modus.cpp:115:9: error: 'r' was not declared in this scope
+         r = WEICHEN_GRUNDSTELLUNG[w];
+         ^
+src\Modus.cpp:115:13: error: 'WEICHEN_GRUNDSTELLUNG' was not declared in this scope
+         r = WEICHEN_GRUNDSTELLUNG[w];
+             ^~~~~~~~~~~~~~~~~~~~~
+In file included from src\SensorHub.cpp:1:0:
+include/SensorHub.h:45:36: error: 'MEGA1_MAX_SENS' was not declared in this scope
+     static constexpr uint8_t MAX = MEGA1_MAX_SENS; // = 24
+                                    ^~~~~~~~~~~~~~
+In file included from src\SteuerungWeichen.cpp:1:0:
+include/SteuerungWeichen.h:15:15: error: 'SteuerungWeichenDefinition' does not name a type; did you mean 'SteuerungWeichen'?   
+         const SteuerungWeichenDefinition* defs,
+               ^~~~~~~~~~~~~~~~~~~~~~~~~~
+               SteuerungWeichen
+include/SensorHub.h:45:36: note: suggested alternative: 'MEGA1_I2C_ADDRESS'
+     static constexpr uint8_t MAX = MEGA1_MAX_SENS; // = 24
+                                    ^~~~~~~~~~~~~~
+                                    MEGA1_I2C_ADDRESS
+include/SensorHub.h:47:28: error: size of array 'm_typ' is not an integral constant-expression
+     SensorTyp     m_typ[MAX];
+                            ^
+include/SensorHub.h:48:30: error: size of array 'm_pulse' is not an integral constant-expression
+     PulseSensor   m_pulse[MAX];
+                              ^
+include/SensorHub.h:49:32: error: size of array 'm_kontakt' is not an integral constant-expression
+     SensorKontakt m_kontakt[MAX];
+                                ^
+include/SensorHub.h:51:35: error: size of array 'm_lastActive' is not an integral constant-expression
+     bool          m_lastActive[MAX];
+                                   ^
+include/SensorHub.h:52:37: error: size of array 'm_triggerCount' is not an integral constant-expression
+     uint16_t      m_triggerCount[MAX];
+                                     ^
+src\SensorHub.cpp:11:33: error: 'MEGA1_MAX_SENS' was not declared in this scope
+ static const uint8_t SENSOR_PIN[MEGA1_MAX_SENS] = {
+                                 ^~~~~~~~~~~~~~
+src\Modus.cpp:117:33: error: 'EEPROM_WEICHEN_BASE' was not declared in this scope
+         uint8_t v = EEPROM.read(EEPROM_WEICHEN_BASE + w);
+                                 ^~~~~~~~~~~~~~~~~~~
+include/SteuerungWeichen.h:27:11: error: 'SteuerungWeichenDefinition' does not name a type; did you mean 'SteuerungWeichen'?   
+     const SteuerungWeichenDefinition* _defs;
+           ^~~~~~~~~~~~~~~~~~~~~~~~~~
+           SteuerungWeichen
+src\SensorHub.cpp:11:33: note: suggested alternative: 'MEGA1_I2C_ADDRESS'
+ static const uint8_t SENSOR_PIN[MEGA1_MAX_SENS] = {
+                                 ^~~~~~~~~~~~~~
+                                 MEGA1_I2C_ADDRESS
+src\SensorHub.cpp:41:35: error: 'MEGA1_MAX_SENS' was not declared in this scope
+ static const bool SENSOR_IS_PULSE[MEGA1_MAX_SENS] = {
+                                   ^~~~~~~~~~~~~~
+In file included from src\config.cpp:1:0:
+include/config.h:11:44: error: 'MEGA1_MAX_SENS' was not declared in this scope
+ static constexpr uint8_t MAX_SENSORS     = MEGA1_MAX_SENS;   // 24
+                                            ^~~~~~~~~~~~~~
+src\Modus.cpp:118:9: error: 'r' was not declared in this scope
+         r = (v == 1 ? ABBIEGEN : GERADE);
+         ^
+src\Modus.cpp:118:23: error: 'ABBIEGEN' was not declared in this scope
+         r = (v == 1 ? ABBIEGEN : GERADE);
+                       ^~~~~~~~
+src\SensorHub.cpp:41:35: note: suggested alternative: 'MEGA1_I2C_ADDRESS'
+ static const bool SENSOR_IS_PULSE[MEGA1_MAX_SENS] = {
+                                   ^~~~~~~~~~~~~~
+                                   MEGA1_I2C_ADDRESS
+src\SensorHub.cpp: In member function 'void SensorHub::begin()':
+src\SensorHub.cpp:59:23: error: 'SENSOR_PIN' was not declared in this scope
+         uint8_t pin = SENSOR_PIN[i];
+                       ^~~~~~~~~~
+include/config.h:11:44: note: suggested alternative: 'MEGA1_I2C_ADDRESS'
+ static constexpr uint8_t MAX_SENSORS     = MEGA1_MAX_SENS;   // 24
+                                            ^~~~~~~~~~~~~~
+                                            MEGA1_I2C_ADDRESS
+src\Modus.cpp:118:34: error: 'GERADE' was not declared in this scope
+         r = (v == 1 ? ABBIEGEN : GERADE);
+                                  ^~~~~~
+src\Modus.cpp:118:34: note: suggested alternative: 'PRADC'
+         r = (v == 1 ? ABBIEGEN : GERADE);
+                                  ^~~~~~
+                                  PRADC
+src\SensorHub.cpp:63:13: error: 'SENSOR_IS_PULSE' was not declared in this scope
+         if (SENSOR_IS_PULSE[i]) {
+             ^~~~~~~~~~~~~~~
+src\Modus.cpp:121:17: error: 'class Weiche' has no member named 'ziel'
+     _weichen[w].ziel = r;
+                 ^~~~
+src\Modus.cpp:121:24: error: 'r' was not declared in this scope
+     _weichen[w].ziel = r;
+                        ^
+src\Modus.cpp:122:17: error: 'class Weiche' has no member named 'schalten'; did you mean 'schalte'?
+     _weichen[w].schalten();
+                 ^~~~~~~~
+                 schalte
+include/SteuerungWeichen.h:30:30: error: 'SteuerungWeichenDefinition' does not name a type; did you mean 'SteuerungWeichen'?   
+     bool isResetSensor(const SteuerungWeichenDefinition& fs, uint8_t sensor);
+                              ^~~~~~~~~~~~~~~~~~~~~~~~~~
+                              SteuerungWeichen
+In file included from src\config.cpp:2:0:
+include/SteuerungWeichen.h:15:15: error: 'SteuerungWeichenDefinition' does not name a type; did you mean 'SteuerungWeichen'?   
+         const SteuerungWeichenDefinition* defs,
+               ^~~~~~~~~~~~~~~~~~~~~~~~~~
+               SteuerungWeichen
+src\SensorHub.cpp: In member function 'void SensorHub::update(uint32_t)':
+src\SensorHub.cpp:81:23: error: 'SENSOR_PIN' was not declared in this scope
+         uint8_t pin = SENSOR_PIN[id];
+                       ^~~~~~~~~~
+include/SteuerungWeichen.h:27:11: error: 'SteuerungWeichenDefinition' does not name a type; did you mean 'SteuerungWeichen'?
+     const SteuerungWeichenDefinition* _defs;
+           ^~~~~~~~~~~~~~~~~~~~~~~~~~
+           SteuerungWeichen
+src\SteuerungWeichen.cpp:14:11: error: 'SteuerungWeichenDefinition' does not name a type; did you mean 'SteuerungWeichen'?     
+     const SteuerungWeichenDefinition* defs,
+           ^~~~~~~~~~~~~~~~~~~~~~~~~~
+           SteuerungWeichen
+src\SteuerungWeichen.cpp: In constructor 'SteuerungWeichen::SteuerungWeichen(Weiche*, const int*, uint8_t)':
+src\SteuerungWeichen.cpp:18:3: error: class 'SteuerungWeichen' does not have any field named '_defs'
+   _defs(defs),
+   ^~~~~
+*** [.pio\build\megaatmega2560\src\Modus.cpp.o] Error 1
+src\SteuerungWeichen.cpp: At global scope:
+src\SteuerungWeichen.cpp:24:44: error: 'SteuerungWeichenDefinition' does not name a type; did you mean 'SteuerungWeichen'?     
+ bool SteuerungWeichen::isResetSensor(const SteuerungWeichenDefinition& fs, uint8_t sensor)
+                                            ^~~~~~~~~~~~~~~~~~~~~~~~~~
+                                            SteuerungWeichen
+src\SteuerungWeichen.cpp: In member function 'bool SteuerungWeichen::isResetSensor(const int&, uint8_t)':
+src\SteuerungWeichen.cpp:26:32: error: request for member 'numReset' in 'fs', which is of non-class type 'const int'
+     for (uint8_t i = 0; i < fs.numReset; i++) {
+                                ^~~~~~~~
+src\SteuerungWeichen.cpp:27:16: error: request for member 'resetSensors' in 'fs', which is of non-class type 'const int'       
+         if (fs.resetSensors[i] == sensor)
+                ^~~~~~~~~~~~
+include/SteuerungWeichen.h:30:30: error: 'SteuerungWeichenDefinition' does not name a type; did you mean 'SteuerungWeichen'?   
+     bool isResetSensor(const SteuerungWeichenDefinition& fs, uint8_t sensor);
+                              ^~~~~~~~~~~~~~~~~~~~~~~~~~
+                              SteuerungWeichen
+src\SteuerungWeichen.cpp: In member function 'void SteuerungWeichen::onSensorTrigger(uint8_t)':
+src\SteuerungWeichen.cpp:37:15: error: 'SteuerungWeichenDefinition' does not name a type; did you mean 'SteuerungWeichen'?     
+         const SteuerungWeichenDefinition& fs = _defs[fsIndex];
+               ^~~~~~~~~~~~~~~~~~~~~~~~~~
+               SteuerungWeichen
+src\SteuerungWeichen.cpp:40:21: error: 'fs' was not declared in this scope
+         if (sIdx == fs.sensorIndex) {
+                     ^~
+src\SteuerungWeichen.cpp:40:21: note: suggested alternative: 'ffs'
+         if (sIdx == fs.sensorIndex) {
+                     ^~
+                     ffs
+src\SteuerungWeichen.cpp:45:27: error: 'fs' was not declared in this scope
+         if (isResetSensor(fs, sIdx)) {
+                           ^~
+src\SteuerungWeichen.cpp:45:27: note: suggested alternative: 'ffs'
+         if (isResetSensor(fs, sIdx)) {
+                           ^~
+                           ffs
+src\config.cpp:10:27: error: 'NUM_SENS' was not declared in this scope
+ const uint8_t SENSOR_PINS[NUM_SENS] = {
+                           ^~~~~~~~
+*** [.pio\build\megaatmega2560\src\SensorHub.cpp.o] Error 1
+src\config.cpp:10:27: note: suggested alternative: 'FUSES'
+ const uint8_t SENSOR_PINS[NUM_SENS] = {
+                           ^~~~~~~~
+                           FUSES
+src\SteuerungWeichen.cpp: In member function 'void SteuerungWeichen::startFs(uint8_t)':
+src\SteuerungWeichen.cpp:57:11: error: 'SteuerungWeichenDefinition' does not name a type; did you mean 'SteuerungWeichen'?     
+     const SteuerungWeichenDefinition& fs = _defs[fsIndex];
+           ^~~~~~~~~~~~~~~~~~~~~~~~~~
+           SteuerungWeichen
+src\config.cpp:30:7: error: 'WPins' does not name a type
+ const WPins WEICHEN_PINS[NUM_WEICHEN] = {
+       ^~~~~
+src\SteuerungWeichen.cpp:71:29: error: 'fs' was not declared in this scope
+     for (uint8_t i = 0; i < fs.numSteps; i++) {
+                             ^~
+src\SteuerungWeichen.cpp:71:29: note: suggested alternative: 'ffs'
+     for (uint8_t i = 0; i < fs.numSteps; i++) {
+                             ^~
+                             ffs
+src\config.cpp:49:7: error: 'Richtung' does not name a type
+ const Richtung WEICHEN_GRUNDSTELLUNG[NUM_WEICHEN] = {
+       ^~~~~~~~
+src\config.cpp:73:7: error: 'BahnhofConfig' does not name a type
+ const BahnhofConfig BHF_CONFIGS[NUM_BHF] = {
+       ^~~~~~~~~~~~~
+src\SteuerungWeichen.cpp:72:15: error: 'WeichenSchaltSchritt' does not name a type
+         const WeichenSchaltSchritt& step = fs.steps[i];
+               ^~~~~~~~~~~~~~~~~~~~
+src\config.cpp:87:14: error: 'WeichenSchaltSchritt' does not name a type
+ static const WeichenSchaltSchritt FS0_STEPS[] = {
+              ^~~~~~~~~~~~~~~~~~~~
+src\SteuerungWeichen.cpp:75:40: error: 'step' was not declared in this scope
+         if (fsPassageCount[fsIndex] >= step.minCounter) {
+                                        ^~~~
+src\SteuerungWeichen.cpp:75:40: note: suggested alternative: 'setup'
+         if (fsPassageCount[fsIndex] >= step.minCounter) {
+                                        ^~~~
+                                        setup
+src\SteuerungWeichen.cpp:77:27: error: 'class Weiche' has no member named 'ziel'
+             _weichen[wid].ziel = step.richtung;
+                           ^~~~
+src\SteuerungWeichen.cpp:78:27: error: 'class Weiche' has no member named 'schalten'; did you mean 'schalte'?
+             _weichen[wid].schalten();
+                           ^~~~~~~~
+                           schalte
+src\config.cpp:97:14: error: 'WeichenSchaltSchritt' does not name a type
+ static const WeichenSchaltSchritt FS1_STEPS[] = {
+              ^~~~~~~~~~~~~~~~~~~~
+src\config.cpp:129:14: error: 'WeichenSchaltSchritt' does not name a type
+ static const WeichenSchaltSchritt FS2_STEPS[] = {
+              ^~~~~~~~~~~~~~~~~~~~
+src\config.cpp:136:14: error: 'WeichenSchaltSchritt' does not name a type
+ static const WeichenSchaltSchritt FS3_STEPS[] = {
+              ^~~~~~~~~~~~~~~~~~~~
+*** [.pio\build\megaatmega2560\src\SteuerungWeichen.cpp.o] Error 1
+src\config.cpp:143:14: error: 'WeichenSchaltSchritt' does not name a type
+ static const WeichenSchaltSchritt FS4_STEPS[] = {
+              ^~~~~~~~~~~~~~~~~~~~
+src\config.cpp:152:7: error: 'SteuerungWeichenDefinition' does not name a type; did you mean 'SteuerungWeichen'?
+ const SteuerungWeichenDefinition STW_DEFS[] = {
+       ^~~~~~~~~~~~~~~~~~~~~~~~~~
+       SteuerungWeichen
+src\config.cpp:164:35: error: 'STW_DEFS' was not declared in this scope
+ const uint8_t NUM_STW_FS = sizeof(STW_DEFS) / sizeof(STW_DEFS[0]);
+                                   ^~~~~~~~
+src\config.cpp:164:54: error: 'STW_DEFS' was not declared in this scope
+ const uint8_t NUM_STW_FS = sizeof(STW_DEFS) / sizeof(STW_DEFS[0]);
+                                                      ^~~~~~~~
+In file included from src\config.cpp:3:0:
+C:\Users\bernh\.platformio\packages\framework-arduino-avr\libraries\EEPROM\src/EEPROM.h:145:20: warning: 'EEPROM' defined but not used [-Wunused-variable]
+ static EEPROMClass EEPROM;
+                    ^~~~~~
+src\core\proto_mega1.cpp: In function 'size_t buildMega1StatusFrame(uint8_t*, const Mega1StatusPayload&)':
+src\core\proto_mega1.cpp:5:5: error: 'ProtoHeader' was not declared in this scope
+     ProtoHeader h;
+     ^~~~~~~~~~~
+src\core\proto_mega1.cpp:5:5: note: suggested alternative: 'ProtoVersion'
+     ProtoHeader h;
+     ^~~~~~~~~~~
+     ProtoVersion
+src\core\proto_mega1.cpp:6:5: error: 'h' was not declared in this scope
+     h.slaveId    = SlaveId::MEGA1;
+     ^
+src\core\proto_mega1.cpp:6:20: error: 'SlaveId' has not been declared
+     h.slaveId    = SlaveId::MEGA1;
+                    ^~~~~~~
+src\core\proto_mega1.cpp:7:20: error: 'MsgType' has not been declared
+     h.msgType    = MsgType::STATUS;
+                    ^~~~~~~
+src\core\proto_mega1.cpp:11:5: error: 'proto_writeHeader' was not declared in this scope
+     proto_writeHeader(outBuf, h);
+     ^~~~~~~~~~~~~~~~~
+*** [.pio\build\megaatmega2560\src\config.cpp.o] Error 1
+src\core\proto_mega1.cpp:22:34: error: 'proto_calcChecksum' was not declared in this scope
+     outBuf[lenWithoutChecksum] = proto_calcChecksum(outBuf, lenWithoutChecksum);
+                                  ^~~~~~~~~~~~~~~~~~
+*** [.pio\build\megaatmega2560\src\core\proto_mega1.cpp.o] Error 1
