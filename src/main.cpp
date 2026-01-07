@@ -29,7 +29,6 @@ uint16_t g_bootId = 0;
 // Hilfsfunktionen
 // ---------------------------------------------------------------------------
 
-
 static void updateDataReadyPin()
 {
     digitalWrite(PIN_DATA_READY, g_payloadDirty ? HIGH : LOW);
@@ -49,6 +48,11 @@ void markPayloadTransmitted()
 
 void setup()
 {
+    Serial.begin(115200);
+    delay(200);
+    Serial.println();
+    Serial.println(F("=== Mega1 boot ==="));
+
     initPinsMega1();
 
     randomSeed(analogRead(0));
@@ -60,12 +64,11 @@ void setup()
     fahrstrassen.begin();
     modusController.begin();
     trackPowerHub.begin();
-    
+
     pinMode(PIN_DATA_READY, OUTPUT);
     digitalWrite(PIN_DATA_READY, LOW);
 
     i2cSlaveBegin(I2C_ADDR_MEGA1);
-
 
     memset(&g_payload,     0, sizeof(g_payload));
     memset(&s_lastPayload, 0, sizeof(s_lastPayload));
@@ -76,10 +79,29 @@ void loop()
 {
     const uint32_t now = millis();
 
-    static uint32_t tSensors   = 0;
-    static uint32_t tLogic     = 0;
-    static uint32_t tWeichen   = 0;
-    static uint32_t tPayload   = 0;
+    // I2C Debug Summary: ruhig, nur alle 5s.
+    // Ereignisse (first request / RX cmd) kommen direkt aus I2CSlave.cpp.
+    static uint32_t lastPrint = 0;
+    if (now - lastPrint >= 5000)
+    {
+        lastPrint = now;
+
+        I2CDebugSnapshot s = i2cGetDebugSnapshot();
+
+        Serial.print(F("[M1] I2C req=")); Serial.print(s.reqCount);
+        Serial.print(F(" rx="));          Serial.print(s.rxCount);
+        Serial.print(F(" lastCmd=0x"));   Serial.print(s.lastCmd, HEX);
+        Serial.print(F(" lastRxLen="));   Serial.print(s.lastRxLen);
+        Serial.print(F(" sent(ver="));    Serial.print(s.lastSentVer);
+        Serial.print(F(" node="));        Serial.print(s.lastSentNode);
+        Serial.print(F(" size="));        Serial.print(s.lastSentSize);
+        Serial.println(F(")"));
+    }
+
+    static uint32_t tSensors = 0;
+    static uint32_t tLogic   = 0;
+    static uint32_t tWeichen = 0;
+    static uint32_t tPayload = 0;
 
     // ---------------- Sensoren ----------------
     if (now - tSensors >= 5)
@@ -110,16 +132,18 @@ void loop()
     // ---------------- Payload / Status ----------------
     if (now - tPayload >= 50)
     {
+        tPayload = now;
+
         g_payload.kontaktBits     = sensorHub.buildKontaktBits();
 
-        g_payload.weichenBits    = weichenHub.buildWeichenBits();     // SOLL
-        g_payload.weichenIstBits = weichenHub.buildWeichenIstBits();  // IST
-        g_payload.weichenOkBits  = weichenHub.buildWeichenOkBits();   // OK/FAIL
+        g_payload.weichenBits     = weichenHub.buildWeichenBits();     // SOLL
+        g_payload.weichenIstBits  = weichenHub.buildWeichenIstBits();  // IST
+        g_payload.weichenOkBits   = weichenHub.buildWeichenOkBits();   // OK/FAIL
 
-        g_payload.activeRoute    = fahrstrassen.activeRoute();
-        g_payload.modus          = (uint8_t)modusController.mode();
+        g_payload.activeRoute     = fahrstrassen.activeRoute();
+        g_payload.modus           = (uint8_t)modusController.mode();
 
         g_payloadDirty = true;
-
+        // optional: updateDataReadyPin();  // später, wenn du DataReady aktiv nutzen willst
     }
 }
