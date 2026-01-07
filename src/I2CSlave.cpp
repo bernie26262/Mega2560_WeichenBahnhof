@@ -1,6 +1,7 @@
 #include "I2CSlave.h"
 #include "I2CProtocol.h"
 #include "system/system_status_payload.h"
+#include "system/mega1_diag_payload.h"
 
 #include "payload.h"
 #include "WeichenHub.h"
@@ -9,6 +10,11 @@
 
 #include <Arduino.h>
 #include <Wire.h>
+
+// Globale Objekte (definiert in main.cpp)
+extern WeichenHub        weichenHub;
+extern BahnhofController bfController;
+extern ModusController   modusController;
 
 // --------------------------------------------------
 // I2C Debug Counters (nur über Snapshot nach außen)
@@ -40,6 +46,12 @@ static uint8_t s_len = 0;
 // Optional: 1-Byte Response nach einem CMD (Mega2-Style)
 static bool    s_cmdResponsePending = false;
 static uint8_t s_cmdResponseOk      = 1;   // 1 = OK, 0 = FAIL
+
+
+// Für read-only Snapshot-Kommandos (ohne 1-Byte ACK davor)
+enum class NextResponse : uint8_t { NONE=0, DIAG=1 };
+static volatile NextResponse s_nextResponse = NextResponse::NONE;
+static volatile uint8_t s_diagSeq = 0;
 
 // --------------------------------------------------
 // Initialisierung
@@ -81,6 +93,11 @@ void i2cOnReceive(int len)
 
     switch (s_cmd)
     {
+        case CMD_GET_DIAG:
+            // Read-only Snapshot: nächste Read-Phase liefert Diagnosepaket (ohne 1-Byte ACK)
+            s_nextResponse = NextResponse::DIAG;
+            return;
+
         case CMD_SET_MODE:
             if (s_len >= 2)
             {
@@ -137,6 +154,41 @@ void i2cOnRequest()
     // Ereignis-Log: erster Request (zeigt Bus-Kommunikation sofort)
     if (g_i2cReqCount == 1)
         Serial.println(F("[M1] first I2C request"));
+
+    // Read-only Snapshot: Diagnosepaket (<=32B)
+    if (s_nextResponse == NextResponse::DIAG)
+    {
+        s_nextResponse = NextResponse::NONE;
+
+        Mega1DiagV1 d{};
+        d.version = 1;
+        d.flags   = 0x01; // valid
+        d.seq     = ++s_diagSeq;
+        d.mode    = (uint8_t)modusController.mode();
+        d.warnings = 0;
+
+                const uint16_t mask = (NUM_WEICHEN >= 16) ? 0xFFFFu : (uint16_t)((1u << NUM_WEICHEN) - 1u);
+
+        d.weicheIstGeradeBits  = (uint16_t)(weichenHub.buildWeichenIstBits()  & mask);
+        d.weicheSollGeradeBits = (uint16_t)(weichenHub.buildWeichenBits()     & mask);
+
+        // Slow/Reduktion: pinRed LOW = aktiv (nur Weichen mit hasRed)
+        d.weicheSlowActiveBits = (uint16_t)(weichenHub.buildWeichenSlowActiveBits() & mask);
+
+        // Bahnhofs-Power: HIGH = AN
+        uint8_t pm = 0;
+        for (uint8_t i = 0; i < BHF_COUNT; ++i)
+        {
+            if (digitalRead(BHF_TRACK_POWER_PIN[i]) == HIGH)
+                pm |= (1u << i);
+        }
+        d.powerMask = pm;
+
+        d.uptime16 = (uint16_t)(millis() / 100);
+
+        Wire.write((const uint8_t*)&d, sizeof(d));
+        return;
+    }
 
     // Mega2-Style: Wenn vorher ein CMD kam, erst 1 Byte OK/FAIL ausgeben
     if (s_cmdResponsePending)

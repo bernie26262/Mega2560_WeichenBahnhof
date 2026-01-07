@@ -7,7 +7,10 @@ extern WeichenHub weichenHub;
 
 void ModusController::begin()
 {
-    // aktuell nichts zu initialisieren
+    // Default beim Boot: AUTOMATIK
+    // m_mode initialisieren, damit setMode() sicher arbeitet.
+    m_mode = BetriebsModus::MANUELL;
+    setMode(BetriebsModus::AUTOMATIK);
 }
 
 void ModusController::setMode(BetriebsModus newMode)

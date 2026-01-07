@@ -26,5 +26,7 @@ public:
     bool isManual() const{ return m_mode == BetriebsModus::MANUELL; }
 
 private:
-    BetriebsModus m_mode = BetriebsModus::MANUELL;
+    // Default beim Boot: AUTOMATIK (wie gewuenscht).
+    // (Manuell kann jederzeit ueber WebUI gesetzt werden.)
+    BetriebsModus m_mode = BetriebsModus::AUTOMATIK;
 };
