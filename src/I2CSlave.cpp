@@ -7,6 +7,7 @@
 #include "WeichenHub.h"
 #include "Modus.h"
 #include "BahnhofController.h"
+#include "TrackPowerHub.h"
 
 #include <Arduino.h>
 #include <Wire.h>
@@ -14,6 +15,7 @@
 // Globale Objekte (definiert in main.cpp)
 extern WeichenHub        weichenHub;
 extern BahnhofController bfController;
+extern TrackPowerHub     trackPowerHub;
 extern ModusController   modusController;
 
 // --------------------------------------------------
@@ -35,6 +37,7 @@ static volatile uint16_t g_lastSentSize = 0;
 extern WeichenHub        weichenHub;
 extern ModusController   modusController;
 extern BahnhofController bfController;
+extern TrackPowerHub     trackPowerHub;
 
 // --------------------------------------------------
 // Interner Command-Buffer
@@ -112,6 +115,18 @@ void i2cOnReceive(int len)
             {
                 weichenHub.enqueueWeiche(s_buf[1], s_buf[2] != 0);
                 // Prüfung erfolgt später automatisch
+            }
+            break;
+
+
+        case CMD_SET_BHF_POWER:
+            if (s_len >= 3)
+            {
+                const uint8_t bhf = s_buf[1];
+                const bool on = (s_buf[2] != 0);
+                trackPowerHub.setPower(bhf, on);
+                g_payloadDirty = true;
+                digitalWrite(PIN_DATA_READY, HIGH);
             }
             break;
 
