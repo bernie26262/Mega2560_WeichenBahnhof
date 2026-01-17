@@ -94,6 +94,10 @@ void i2cOnReceive(int len)
     Serial.print(F(" len="));
     Serial.println((unsigned)s_len);
 
+    // Mega2-kompatibler 1-Byte ACK: 1=OK, 0=FAIL
+    uint8_t ack = 0;
+
+
     switch (s_cmd)
     {
         case CMD_GET_DIAG:
@@ -104,7 +108,19 @@ void i2cOnReceive(int len)
         case CMD_SET_MODE:
             if (s_len >= 2)
             {
-                modusController.setMode((BetriebsModus)s_buf[1]);
+                const BetriebsModus newMode = (BetriebsModus)s_buf[1];
+
+                // Schutz: während Weichen-Selbsttest läuft, NICHT auf AUTOMATIK schalten
+                // (Grundstellung/Queue darf den Selftest nicht beeinflussen).
+                if (newMode == BetriebsModus::AUTOMATIK && weichenHub.isSelftestActive())
+                {
+                    ack = 0; // FAIL
+                    break;
+                }
+
+                modusController.setMode(newMode);
+                ack = 1;
+
                 g_payloadDirty = true;
                 digitalWrite(PIN_DATA_READY, HIGH);
             }
@@ -113,7 +129,8 @@ void i2cOnReceive(int len)
         case CMD_SET_WEICHE:
             if (s_len >= 3)
             {
-                weichenHub.enqueueWeiche(s_buf[1], s_buf[2] != 0);
+                // ACK abhängig vom Queue-Erfolg
+                ack = weichenHub.enqueueWeiche(s_buf[1], s_buf[2] != 0) ? 1 : 0;
                 // Prüfung erfolgt später automatisch
             }
             break;
@@ -127,6 +144,7 @@ void i2cOnReceive(int len)
                 trackPowerHub.setPower(bhf, on);
                 g_payloadDirty = true;
                 digitalWrite(PIN_DATA_READY, HIGH);
+                ack = 1;
             }
             break;
 
@@ -136,6 +154,7 @@ void i2cOnReceive(int len)
                 bfController.manualRelease(s_buf[1]);
                 g_payloadDirty = true;
                 digitalWrite(PIN_DATA_READY, HIGH);
+                ack = 1;
             }
             break;
 
@@ -147,6 +166,7 @@ void i2cOnReceive(int len)
 
                 g_payloadDirty = true;
                 digitalWrite(PIN_DATA_READY, HIGH);
+                ack = 1;
             }
             break;
 
@@ -155,7 +175,7 @@ void i2cOnReceive(int len)
     }
 
     // Mega2-kompatibel: nach einem CMD eine 1-Byte Antwort bereitstellen.
-    s_cmdResponseOk      = 1;
+    s_cmdResponseOk      = ack;;
     s_cmdResponsePending = true;
 }
 

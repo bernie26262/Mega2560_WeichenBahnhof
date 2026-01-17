@@ -7,10 +7,13 @@ extern WeichenHub weichenHub;
 
 void ModusController::begin()
 {
-    // Default beim Boot: AUTOMATIK
-    // m_mode initialisieren, damit setMode() sicher arbeitet.
+    // Startup-Freigabe wie Mega2:
+    // Bootet in MANUELL. AUTOMATIK wird später per ESP (CMD_SET_MODE) gesetzt,
+    // sobald Startup-Checklist/Selbsttests erledigt sind.
+    //
+    // Dadurch wird die Grundstellung (MANUELL->AUTOMATIK) garantiert erst
+    // nach dem Benutzer-Flow gefahren.
     m_mode = BetriebsModus::MANUELL;
-    setMode(BetriebsModus::AUTOMATIK);
 }
 
 void ModusController::setMode(BetriebsModus newMode)
@@ -28,9 +31,8 @@ void ModusController::setMode(BetriebsModus newMode)
     {
         for (uint8_t w = 0; w < NUM_WEICHEN; ++w)
         {
-            // Richtung -> bool (explizit, typsicher)
-            bool gerade = (WEICHEN_GRUNDSTELLUNG[w] == GERADE);
-            weichenHub.enqueueWeiche(w, gerade);
+            // alle Weichen in Grundstellung fahren
+        (void)weichenHub.enqueueGrundstellung();
         }
     }
 

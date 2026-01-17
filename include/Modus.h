@@ -26,7 +26,8 @@ public:
     bool isManual() const{ return m_mode == BetriebsModus::MANUELL; }
 
 private:
-    // Default beim Boot: AUTOMATIK (wie gewuenscht).
-    // (Manuell kann jederzeit ueber WebUI gesetzt werden.)
-    BetriebsModus m_mode = BetriebsModus::AUTOMATIK;
+    // Startup-Freigabe wie Mega2:
+    // Bootet konservativ in MANUELL. AUTOMATIK wird erst durch ESP gesetzt,
+    // nachdem Startup-Checklist/Selbsttests erledigt sind.
+    BetriebsModus m_mode = BetriebsModus::MANUELL;
 };
