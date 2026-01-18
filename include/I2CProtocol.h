@@ -18,6 +18,9 @@ constexpr uint8_t CMD_ACK_ERROR    = 0x05;
 // Bahnhof-Stromgleise/Signale (0..3) EIN/AUS
 constexpr uint8_t CMD_SET_BHF_POWER = 0x06; // payload: [cmd,bhf(0..3),on(0/1)]
 
+// Weichen-Selbsttest starten (optional/explicit; payload: [cmd])
+constexpr uint8_t CMD_START_SELFTEST = 0x07;
+
 // Diagnose (read-only snapshot, <=32B)
 constexpr uint8_t CMD_GET_DIAG     = 0xD1;
 

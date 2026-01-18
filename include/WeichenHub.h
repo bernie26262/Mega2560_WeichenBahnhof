@@ -45,6 +45,8 @@ public:
     bool isSelftestDone()   const { return m_stDone; }
     void clearSelftestDone() { m_stDone = false; }
     uint16_t selftestFailMask() const { return m_stFailMask; }
+    uint8_t selftestCurrentIdx() const { return m_stActive ? m_stIndex : 0xFF; }
+
 
 
     struct Cmd

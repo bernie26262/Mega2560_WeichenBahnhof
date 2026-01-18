@@ -147,6 +147,19 @@ void i2cOnReceive(int len)
                 ack = 1;
             }
             break;
+        
+        case CMD_START_SELFTEST:
+        {
+            // Expliziter Start vom ESP/WebUI aus
+            // ACK: 1=OK, 0=FAIL (z.B. wenn bereits aktiv / nicht startbar)
+            const bool ok = weichenHub.startSelftest();
+            ack = ok ? 1 : 0;
+
+            // Diag/Status soll zeitnah aktualisiert werden
+            g_payloadDirty = true;
+            digitalWrite(PIN_DATA_READY, HIGH);
+            break;
+        }
 
         case CMD_RELEASE_BHF:
             if (s_len >= 2)
@@ -220,6 +233,24 @@ void i2cOnRequest()
         d.powerMask = pm;
 
         d.uptime16 = (uint16_t)(millis() / 100);
+
+        // --------------------------------------------------
+        // Startup-Checklist / Weichen-Selbsttest (Mega1)
+        // --------------------------------------------------
+        // Erwartete WeichenHub-API (bitte ggf. anpassen):
+        //  - bool isSelftestActive() const;
+        //  - bool isSelftestDone() const;
+        //  - uint16_t selftestFailMask() const;
+        //  - uint8_t selftestCurrentIdx() const;  // 0..11, 0xFF=none
+        d.selftestFlags = 0;
+        if (weichenHub.isSelftestActive()) d.selftestFlags |= 0x01u;
+        if (weichenHub.isSelftestDone())   d.selftestFlags |= 0x02u;
+
+        const uint16_t failMask = (uint16_t)(weichenHub.selftestFailMask() & mask);
+        d.selftestFailMask = failMask;
+        if (failMask) d.selftestFlags |= 0x04u; // hasFail (optional)
+
+        d.selftestCurrentIdx = weichenHub.selftestCurrentIdx();
 
         Wire.write((const uint8_t*)&d, sizeof(d));
         return;
