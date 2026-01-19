@@ -273,8 +273,31 @@ void i2cOnRequest()
     st.uptimeMs = millis();
     st.bootId   = 1;
 
-    // Mega1: keine Emergencies, nur ggf. Warnings (später)
+    // Mega1: keine Emergencies, aber ggf. Warnings (Betrieb/Diagnose)
     st.flags = SYS_OK;
+
+    // ------------------------------------------------------------
+    // Mega1 Warnings (normative)
+    // Bit 0: WARN_WEICHEN_NO_SWITCH
+    // Bit 1: WARN_BAHNHOF_DURCHFAHRT (reserved, not yet implemented)
+    // ------------------------------------------------------------
+    uint8_t m1WarningMask = 0;
+
+    const uint16_t mask = (NUM_WEICHEN >= 16) ? 0xFFFFu : (uint16_t)((1u << NUM_WEICHEN) - 1u);
+
+    // Bit 0: Weichen schalten nicht (Soll != Ist nach Timeout)
+    const uint16_t failMask = (uint16_t)(weichenHub.selftestFailMask() & mask);
+    if (failMask != 0)
+        m1WarningMask |= 0x01;
+
+    // Bit 1: Bahnhofsdurchfahrt (TODO)
+    // if (stationPassThroughWarningActive) m1WarningMask |= 0x02u;
+
+    if (m1WarningMask != 0)
+        st.flags |= SYS_WARNING_PRESENT;
+
+    // reserved low byte = Mega1 warning mask
+    st.reserved = (uint16_t)m1WarningMask;
 
     st.safetyErrorType  = 0;
     st.safetyErrorIndex = 0;
