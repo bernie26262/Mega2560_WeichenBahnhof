@@ -20,5 +20,11 @@ void i2cSlaveBegin(uint8_t address);
 void i2cOnReceive(int len);
 void i2cOnRequest();
 
+// Verarbeitung der aus I2C empfangenen Commands (läuft im loop(), NICHT im ISR!)
+void i2cSlaveProcessQueue();
+
+// Snapshot-Erzeugung für Status/Diag (läuft im loop(), NICHT im ISR!)
+void i2cSlaveUpdateSnapshots();
+
 // ISR-sichere Snapshot-Abfrage (für Serial-Debug im loop())
 I2CDebugSnapshot i2cGetDebugSnapshot();

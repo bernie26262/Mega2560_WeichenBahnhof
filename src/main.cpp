@@ -31,7 +31,8 @@ uint16_t g_bootId = 0;
 
 static void updateDataReadyPin()
 {
-    digitalWrite(PIN_DATA_READY, g_payloadDirty ? HIGH : LOW);
+    // DRDY: idle HIGH, active LOW (wie Mega2)
+    digitalWrite(PIN_DATA_READY, g_payloadDirty ? LOW : HIGH);
 }
 
 // Diese Funktion kann später von der I2C-Slave-ISR aufgerufen werden,
@@ -66,7 +67,7 @@ void setup()
     trackPowerHub.begin();
 
     pinMode(PIN_DATA_READY, OUTPUT);
-    digitalWrite(PIN_DATA_READY, LOW);
+    digitalWrite(PIN_DATA_READY, HIGH); // idle HIGH
 
     i2cSlaveBegin(I2C_ADDR_MEGA1);
 
@@ -78,6 +79,10 @@ void setup()
 void loop()
 {
     const uint32_t now = millis();
+
+    // Commands vom ESP verarbeiten (NICHT im ISR!)
+    i2cSlaveProcessQueue();
+
 
     // I2C Debug Summary: ruhig, nur alle 5s.
     // Ereignisse (first request / RX cmd) kommen direkt aus I2CSlave.cpp.
@@ -143,7 +148,15 @@ void loop()
         g_payload.activeRoute     = fahrstrassen.activeRoute();
         g_payload.modus           = (uint8_t)modusController.mode();
 
-        g_payloadDirty = true;
-        // optional: updateDataReadyPin();  // später, wenn du DataReady aktiv nutzen willst
+        // Change Detection -> nur bei Änderung DRDY aktivieren
+        if (memcmp(&g_payload, &s_lastPayload, sizeof(g_payload)) != 0)
+        {
+            s_lastPayload = g_payload;
+            g_payloadDirty = true;
+            updateDataReadyPin();
+        }
+
+        // Status/Diag Snapshots für I2C onRequest vorbereiten
+        i2cSlaveUpdateSnapshots();
     }
 }

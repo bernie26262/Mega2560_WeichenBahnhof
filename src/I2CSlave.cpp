@@ -11,12 +11,15 @@
 
 #include <Arduino.h>
 #include <Wire.h>
+#include <string.h>
 
 // Globale Objekte (definiert in main.cpp)
 extern WeichenHub        weichenHub;
 extern BahnhofController bfController;
 extern TrackPowerHub     trackPowerHub;
 extern ModusController   modusController;
+extern Mega1StatusPayload g_payload;
+extern volatile bool g_payloadDirty;
 
 // --------------------------------------------------
 // I2C Debug Counters (nur über Snapshot nach außen)
@@ -57,6 +60,41 @@ static volatile NextResponse s_nextResponse = NextResponse::NONE;
 static volatile uint8_t s_diagSeq = 0;
 
 // --------------------------------------------------
+// Snapshots (werden im loop() gebaut, im ISR nur rausgeschrieben)
+// --------------------------------------------------
+static SystemStatus s_statusSnap;
+static Mega1DiagV1  s_diagSnap;
+
+// --------------------------------------------------
+// Command Queue (ISR -> loop)
+// --------------------------------------------------
+namespace {
+    struct CmdItem { uint8_t cmd; uint8_t a; uint8_t b; };
+    static constexpr uint8_t CMDQ_SIZE = 8;
+    static volatile uint8_t s_qHead = 0;
+    static volatile uint8_t s_qTail = 0;
+    static CmdItem s_q[CMDQ_SIZE];
+
+    static bool qPush(uint8_t cmd, uint8_t a=0, uint8_t b=0)
+    {
+        const uint8_t next = (uint8_t)((s_qHead + 1) % CMDQ_SIZE);
+        if (next == s_qTail) return false; // full
+        s_q[s_qHead] = {cmd, a, b};
+        s_qHead = next;
+        return true;
+    }
+
+    static bool qPop(CmdItem& out)
+    {
+        if (s_qTail == s_qHead) return false;
+        out = s_q[s_qTail];
+        s_qTail = (uint8_t)((s_qTail + 1) % CMDQ_SIZE);
+        return true;
+    }
+}
+
+
+// --------------------------------------------------
 // Initialisierung
 // --------------------------------------------------
 void i2cSlaveBegin(uint8_t address)
@@ -88,18 +126,20 @@ void i2cOnReceive(int len)
     s_cmd = s_buf[0];
     g_lastCmd = s_cmd;
 
-    // Ereignis-Log: nur bei gültigem CMD-Paket
-    Serial.print(F("[M1] I2C RX cmd=0x"));
-    Serial.print(g_lastCmd, HEX);
-    Serial.print(F(" len="));
-    Serial.println((unsigned)s_len);
-
-    // Mega2-kompatibler 1-Byte ACK: 1=OK, 0=FAIL
+    // WICHTIG: KEIN Serial im ISR (Wire callbacks laufen im IRQ-Kontext)
+    // Mega2-kompatibler 1-Byte ACK (nur für "write commands")
     uint8_t ack = 0;
+    bool wantAck = false;
 
 
     switch (s_cmd)
     {
+        case CMD_GET_STATUS:
+            // Read-only: Master wird danach SystemStatus lesen.
+            // -> KEIN 1-Byte ACK vorbereiten!
+            s_nextResponse = NextResponse::NONE;
+            return;
+
         case CMD_GET_DIAG:
             // Read-only Snapshot: nächste Read-Phase liefert Diagnosepaket (ohne 1-Byte ACK)
             s_nextResponse = NextResponse::DIAG;
@@ -108,30 +148,17 @@ void i2cOnReceive(int len)
         case CMD_SET_MODE:
             if (s_len >= 2)
             {
-                const BetriebsModus newMode = (BetriebsModus)s_buf[1];
-
-                // Schutz: während Weichen-Selbsttest läuft, NICHT auf AUTOMATIK schalten
-                // (Grundstellung/Queue darf den Selftest nicht beeinflussen).
-                if (newMode == BetriebsModus::AUTOMATIK && weichenHub.isSelftestActive())
-                {
-                    ack = 0; // FAIL
-                    break;
-                }
-
-                modusController.setMode(newMode);
-                ack = 1;
-
-                g_payloadDirty = true;
-                digitalWrite(PIN_DATA_READY, HIGH);
+                // in Queue, Ausführung im loop()
+                ack = qPush(CMD_SET_MODE, s_buf[1], 0) ? 1 : 0;
+                wantAck = true;
             }
             break;
 
         case CMD_SET_WEICHE:
             if (s_len >= 3)
             {
-                // ACK abhängig vom Queue-Erfolg
-                ack = weichenHub.enqueueWeiche(s_buf[1], s_buf[2] != 0) ? 1 : 0;
-                // Prüfung erfolgt später automatisch
+                ack = qPush(CMD_SET_WEICHE, s_buf[1], s_buf[2]) ? 1 : 0;
+                wantAck = true;
             }
             break;
 
@@ -139,47 +166,31 @@ void i2cOnReceive(int len)
         case CMD_SET_BHF_POWER:
             if (s_len >= 3)
             {
-                const uint8_t bhf = s_buf[1];
-                const bool on = (s_buf[2] != 0);
-                trackPowerHub.setPower(bhf, on);
-                g_payloadDirty = true;
-                digitalWrite(PIN_DATA_READY, HIGH);
-                ack = 1;
+                ack = qPush(CMD_SET_BHF_POWER, s_buf[1], s_buf[2]) ? 1 : 0;
+                wantAck = true;
             }
             break;
         
         case CMD_START_SELFTEST:
         {
-            // Expliziter Start vom ESP/WebUI aus
-            // ACK: 1=OK, 0=FAIL (z.B. wenn bereits aktiv / nicht startbar)
-            const bool ok = weichenHub.startSelftest();
-            ack = ok ? 1 : 0;
-
-            // Diag/Status soll zeitnah aktualisiert werden
-            g_payloadDirty = true;
-            digitalWrite(PIN_DATA_READY, HIGH);
+            ack = qPush(CMD_START_SELFTEST, 0, 0) ? 1 : 0;
+            wantAck = true;
             break;
         }
 
         case CMD_RELEASE_BHF:
             if (s_len >= 2)
             {
-                bfController.manualRelease(s_buf[1]);
-                g_payloadDirty = true;
-                digitalWrite(PIN_DATA_READY, HIGH);
-                ack = 1;
+                ack = qPush(CMD_RELEASE_BHF, s_buf[1], 0) ? 1 : 0;
+                wantAck = true;
             }
             break;
 
         case CMD_ACK_ERROR:
             if (s_len >= 2)
             {
-                uint8_t mask = s_buf[1];
-                g_payload.errorFlags &= ~mask;
-
-                g_payloadDirty = true;
-                digitalWrite(PIN_DATA_READY, HIGH);
-                ack = 1;
+                ack = qPush(CMD_ACK_ERROR, s_buf[1], 0) ? 1 : 0;
+                wantAck = true;
             }
             break;
 
@@ -187,9 +198,12 @@ void i2cOnReceive(int len)
             break;
     }
 
-    // Mega2-kompatibel: nach einem CMD eine 1-Byte Antwort bereitstellen.
-    s_cmdResponseOk      = ack;;
-    s_cmdResponsePending = true;
+    // Nur bei "write commands" ACK bereitstellen
+    if (wantAck)
+    {
+        s_cmdResponseOk      = ack;
+        s_cmdResponsePending = true;
+    }
 }
 
 // --------------------------------------------------
@@ -199,60 +213,14 @@ void i2cOnRequest()
 {
     g_i2cReqCount++;
 
-    // Ereignis-Log: erster Request (zeigt Bus-Kommunikation sofort)
-    if (g_i2cReqCount == 1)
-        Serial.println(F("[M1] first I2C request"));
+    // WICHTIG: KEIN Serial im ISR
 
     // Read-only Snapshot: Diagnosepaket (<=32B)
     if (s_nextResponse == NextResponse::DIAG)
     {
         s_nextResponse = NextResponse::NONE;
 
-        Mega1DiagV1 d{};
-        d.version = 1;
-        d.flags   = 0x01; // valid
-        d.seq     = ++s_diagSeq;
-        d.mode    = (uint8_t)modusController.mode();
-        d.warnings = 0;
-
-                const uint16_t mask = (NUM_WEICHEN >= 16) ? 0xFFFFu : (uint16_t)((1u << NUM_WEICHEN) - 1u);
-
-        d.weicheIstGeradeBits  = (uint16_t)(weichenHub.buildWeichenIstBits()  & mask);
-        d.weicheSollGeradeBits = (uint16_t)(weichenHub.buildWeichenBits()     & mask);
-
-        // Slow/Reduktion: pinRed LOW = aktiv (nur Weichen mit hasRed)
-        d.weicheSlowActiveBits = (uint16_t)(weichenHub.buildWeichenSlowActiveBits() & mask);
-
-        // Bahnhofs-Power: HIGH = AN
-        uint8_t pm = 0;
-        for (uint8_t i = 0; i < BHF_COUNT; ++i)
-        {
-            if (digitalRead(BHF_TRACK_POWER_PIN[i]) == HIGH)
-                pm |= (1u << i);
-        }
-        d.powerMask = pm;
-
-        d.uptime16 = (uint16_t)(millis() / 100);
-
-        // --------------------------------------------------
-        // Startup-Checklist / Weichen-Selbsttest (Mega1)
-        // --------------------------------------------------
-        // Erwartete WeichenHub-API (bitte ggf. anpassen):
-        //  - bool isSelftestActive() const;
-        //  - bool isSelftestDone() const;
-        //  - uint16_t selftestFailMask() const;
-        //  - uint8_t selftestCurrentIdx() const;  // 0..11, 0xFF=none
-        d.selftestFlags = 0;
-        if (weichenHub.isSelftestActive()) d.selftestFlags |= 0x01u;
-        if (weichenHub.isSelftestDone())   d.selftestFlags |= 0x02u;
-
-        const uint16_t failMask = (uint16_t)(weichenHub.selftestFailMask() & mask);
-        d.selftestFailMask = failMask;
-        if (failMask) d.selftestFlags |= 0x04u; // hasFail (optional)
-
-        d.selftestCurrentIdx = weichenHub.selftestCurrentIdx();
-
-        Wire.write((const uint8_t*)&d, sizeof(d));
+        Wire.write((const uint8_t*)&s_diagSnap, sizeof(s_diagSnap));
         return;
     }
 
@@ -265,49 +233,117 @@ void i2cOnRequest()
     }
 
     // Default: SystemStatus direkt ausgeben (wie Mega2)
+    g_lastSentVer  = s_statusSnap.version;
+    g_lastSentNode = s_statusSnap.nodeId;
+    g_lastSentSize = s_statusSnap.size;
+    Wire.write(reinterpret_cast<const uint8_t*>(&s_statusSnap), sizeof(s_statusSnap));
+}
+
+// --------------------------------------------------
+// loop()-Funktionen (keine ISR)
+// --------------------------------------------------
+void i2cSlaveProcessQueue()
+{
+    CmdItem it{};
+    while (qPop(it))
+    {
+        switch (it.cmd)
+        {
+            case CMD_SET_MODE:
+            {
+                const BetriebsModus newMode = (BetriebsModus)it.a;
+                // Schutz: während Weichen-Selbsttest läuft, NICHT auf AUTOMATIK schalten
+                if (newMode == BetriebsModus::AUTOMATIK && weichenHub.isSelftestActive())
+                    break;
+                modusController.setMode(newMode);
+                g_payloadDirty = true;
+                break;
+            }
+
+            case CMD_SET_WEICHE:
+                (void)weichenHub.enqueueWeiche(it.a, it.b != 0);
+                break;
+
+            case CMD_SET_BHF_POWER:
+                trackPowerHub.setPower(it.a, it.b != 0);
+                g_payloadDirty = true;
+                break;
+
+            case CMD_START_SELFTEST:
+                (void)weichenHub.startSelftest();
+                g_payloadDirty = true;
+                break;
+
+            case CMD_RELEASE_BHF:
+                bfController.manualRelease(it.a);
+                g_payloadDirty = true;
+                break;
+
+            case CMD_ACK_ERROR:
+                g_payload.errorFlags &= ~(uint8_t)it.a;
+                g_payloadDirty = true;
+                break;
+
+            default:
+                break;
+        }
+    }
+}
+
+void i2cSlaveUpdateSnapshots()
+{
+    // -------- DIAG snapshot --------
+    Mega1DiagV1 d{};
+    d.version = 1;
+    d.flags   = 0x01;
+    d.seq     = ++s_diagSeq;
+    d.mode    = (uint8_t)modusController.mode();
+    d.warnings = 0;
+
+    const uint16_t mask = (NUM_WEICHEN >= 16) ? 0xFFFFu : (uint16_t)((1u << NUM_WEICHEN) - 1u);
+    d.weicheIstGeradeBits  = (uint16_t)(weichenHub.buildWeichenIstBits()  & mask);
+    d.weicheSollGeradeBits = (uint16_t)(weichenHub.buildWeichenBits()     & mask);
+    d.weicheSlowActiveBits = (uint16_t)(weichenHub.buildWeichenSlowActiveBits() & mask);
+
+    uint8_t pm = 0;
+    for (uint8_t i = 0; i < BHF_COUNT; ++i)
+        if (digitalRead(BHF_TRACK_POWER_PIN[i]) == HIGH)
+            pm |= (1u << i);
+    d.powerMask = pm;
+
+    d.uptime16 = (uint16_t)(millis() / 100);
+    d.selftestFlags = 0;
+    if (weichenHub.isSelftestActive()) d.selftestFlags |= 0x01u;
+    if (weichenHub.isSelftestDone())   d.selftestFlags |= 0x02u;
+    const uint16_t failMask = (uint16_t)(weichenHub.selftestFailMask() & mask);
+    d.selftestFailMask = failMask;
+    if (failMask) d.selftestFlags |= 0x04u;
+    d.selftestCurrentIdx = weichenHub.selftestCurrentIdx();
+
+    // -------- STATUS snapshot --------
     SystemStatus st{};
     st.version = SYSTEM_STATUS_VERSION;
     st.nodeId  = NODE_MEGA1;
     st.size    = sizeof(SystemStatus);
-
     st.uptimeMs = millis();
     st.bootId   = 1;
+    st.flags    = SYS_OK;
 
-    // Mega1: keine Emergencies, aber ggf. Warnings (Betrieb/Diagnose)
-    st.flags = SYS_OK;
-
-    // ------------------------------------------------------------
-    // Mega1 Warnings (normative)
-    // Bit 0: WARN_WEICHEN_NO_SWITCH
-    // Bit 1: WARN_BAHNHOF_DURCHFAHRT (reserved, not yet implemented)
-    // ------------------------------------------------------------
     uint8_t m1WarningMask = 0;
-
-    const uint16_t mask = (NUM_WEICHEN >= 16) ? 0xFFFFu : (uint16_t)((1u << NUM_WEICHEN) - 1u);
-
-    // Bit 0: Weichen schalten nicht (Soll != Ist nach Timeout)
-    const uint16_t failMask = (uint16_t)(weichenHub.selftestFailMask() & mask);
-    if (failMask != 0)
+    if ((uint16_t)(weichenHub.selftestFailMask() & mask) != 0)
         m1WarningMask |= 0x01;
-
-    // Bit 1: Bahnhofsdurchfahrt (TODO)
-    // if (stationPassThroughWarningActive) m1WarningMask |= 0x02u;
-
     if (m1WarningMask != 0)
         st.flags |= SYS_WARNING_PRESENT;
-
-    // reserved low byte = Mega1 warning mask
     st.reserved = (uint16_t)m1WarningMask;
-
     st.safetyErrorType  = 0;
     st.safetyErrorIndex = 0;
 
-    g_lastSentVer  = st.version;
-    g_lastSentNode = st.nodeId;
-    g_lastSentSize = st.size;
-
-    Wire.write(reinterpret_cast<const uint8_t*>(&st), sizeof(SystemStatus));
+    noInterrupts();
+    memcpy(&s_diagSnap,   &d,  sizeof(d));
+    memcpy(&s_statusSnap, &st, sizeof(st));
+    interrupts();
 }
+
 
 // --------------------------------------------------
 // Debug Snapshot (für Serial-Ausgaben im loop())
