@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <util/atomic.h>
 
 #include "pins_mega1.h"
 #include "SensorHub.h"
@@ -10,6 +11,66 @@
 #include "TrackPowerHub.h"
 #include "I2CSlave.h"
 #include "I2CProtocol.h"
+
+
+// --------------------------------------------------
+// DataReady / Pending (Mega1 -> ESP)
+// DRDY ist active LOW, open-drain emuliert:
+//  - LOW: OUTPUT + LOW
+//  - HIGH: INPUT (high-Z), Pullup zieht hoch
+// --------------------------------------------------
+volatile uint16_t g_pendingMask = 0;
+
+static inline void drdyAssertLow()
+{
+    pinMode(PIN_DATA_READY, OUTPUT);
+    digitalWrite(PIN_DATA_READY, LOW);
+}
+
+static inline void drdyReleaseHigh()
+{
+    pinMode(PIN_DATA_READY, INPUT); // high-Z
+}
+
+static void updateDataReadyPin(uint16_t pendingNow)
+{
+    if (pendingNow)
+        drdyAssertLow();
+    else
+        drdyReleaseHigh();
+}
+
+void mega1SetPending(uint16_t bits)
+{
+    uint16_t now;
+    ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+    {
+        g_pendingMask |= bits;
+        now = g_pendingMask;
+    }
+    updateDataReadyPin(now);
+}
+
+void mega1ClearPending(uint16_t bits)
+{
+    uint16_t now;
+    ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+    {
+        g_pendingMask &= (uint16_t)~bits;
+        now = g_pendingMask;
+    }
+    updateDataReadyPin(now);
+}
+
+uint16_t mega1GetPending()
+{
+    uint16_t now;
+    ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+    {
+        now = g_pendingMask;
+    }
+    return now;
+}
 
 // Globale Objekte
 SensorHub         sensorHub;
@@ -29,19 +90,15 @@ uint16_t g_bootId = 0;
 // Hilfsfunktionen
 // ---------------------------------------------------------------------------
 
-static void updateDataReadyPin()
-{
-    // DRDY: idle HIGH, active LOW (wie Mega2)
-    digitalWrite(PIN_DATA_READY, g_payloadDirty ? LOW : HIGH);
-}
 
 // Diese Funktion kann später von der I2C-Slave-ISR aufgerufen werden,
 // wenn das Payload an den Master übertragen wurde.
 void markPayloadTransmitted()
 {
-    g_payloadDirty = false;
-    updateDataReadyPin();
+    // Legacy hook: wird nach erfolgreichem STATUS-Read verwendet
+    mega1ClearPending(M1_PEND_STATUS);
 }
+
 
 // ---------------------------------------------------------------------------
 // setup / loop
@@ -56,6 +113,14 @@ void setup()
 
     initPinsMega1();
 
+    // Defensive I2C bus release (Mega2560: SDA=20, SCL=21)
+    pinMode(20, INPUT_PULLUP);
+    pinMode(21, INPUT_PULLUP);
+
+    // Defensive I2C bus release: SDA=20, SCL=21
+    pinMode(20, INPUT_PULLUP);
+    pinMode(21, INPUT_PULLUP);
+
     randomSeed(analogRead(0));
     g_bootId = (uint16_t)random(1, 65000);
 
@@ -66,14 +131,18 @@ void setup()
     modusController.begin();
     trackPowerHub.begin();
 
-    pinMode(PIN_DATA_READY, OUTPUT);
-    digitalWrite(PIN_DATA_READY, HIGH); // idle HIGH
+    pinMode(PIN_DATA_READY, INPUT); // DRDY idle HIGH (open-drain)
+    updateDataReadyPin(mega1GetPending());
 
-    i2cSlaveBegin(I2C_ADDR_MEGA1);
-
+    // Prepare first payload BEFORE enabling I2C, so ESP never reads garbage
     memset(&g_payload,     0, sizeof(g_payload));
     memset(&s_lastPayload, 0, sizeof(s_lastPayload));
     g_payload.bootId = g_bootId;
+
+    // On boot: mark STATUS/DIAG pending so the ESP can pull immediately
+    mega1SetPending(M1_PEND_STATUS | M1_PEND_DIAG);
+
+    i2cSlaveBegin(I2C_ADDR_MEGA1);
 }
 
 void loop()
@@ -84,25 +153,46 @@ void loop()
     i2cSlaveProcessQueue();
 
 
-    // I2C Debug Summary: ruhig, nur alle 5s.
-    // Ereignisse (first request / RX cmd) kommen direkt aus I2CSlave.cpp.
+    // Mega2-Style Log (keine ISR-Logs!): alle 1000ms und on-change
     static uint32_t lastPrint = 0;
-    if (now - lastPrint >= 5000)
+    static uint16_t lastPend  = 0xFFFF;
+    static uint32_t lastReq   = 0xFFFFFFFFUL;
+    static uint32_t lastRx    = 0xFFFFFFFFUL;
+    static uint8_t  lastCmd   = 0xFF;
+    static uint8_t  lastLen   = 0xFF;
+
+    if (now - lastPrint >= 1000)
     {
         lastPrint = now;
 
-        I2CDebugSnapshot s = i2cGetDebugSnapshot();
+        const I2CDebugSnapshot s = i2cGetDebugSnapshot();
+        const uint16_t pend = mega1GetPending();
+        const uint8_t drdyPin = (uint8_t)digitalRead(PIN_DATA_READY);
 
-        Serial.print(F("[M1] I2C req=")); Serial.print(s.reqCount);
-        Serial.print(F(" rx="));          Serial.print(s.rxCount);
-        Serial.print(F(" lastCmd=0x"));   Serial.print(s.lastCmd, HEX);
-        Serial.print(F(" lastRxLen="));   Serial.print(s.lastRxLen);
-        Serial.print(F(" sent(ver="));    Serial.print(s.lastSentVer);
-        Serial.print(F(" node="));        Serial.print(s.lastSentNode);
-        Serial.print(F(" size="));        Serial.print(s.lastSentSize);
-        Serial.println(F(")"));
+        const bool changed =
+            (pend != lastPend) || (s.reqCount != lastReq) || (s.rxCount != lastRx) ||
+            (s.lastCmd != lastCmd) || (s.lastRxLen != lastLen);
+
+        if (changed)
+        {
+            lastPend = pend; lastReq = s.reqCount; lastRx = s.rxCount;
+            lastCmd  = s.lastCmd; lastLen = s.lastRxLen;
+
+            Serial.print(F("[M1] DRDY pin=")); Serial.print(drdyPin);
+            Serial.print(F(" pending=0x"));
+            if (pend < 0x1000) Serial.print('0');
+            if (pend < 0x0100) Serial.print('0');
+            if (pend < 0x0010) Serial.print('0');
+            Serial.print(pend, HEX);
+
+            Serial.print(F(" rx=")); Serial.print(s.rxCount);
+            Serial.print(F(" req=")); Serial.print(s.reqCount);
+            Serial.print(F(" lastCmd=0x"));
+            if (s.lastCmd < 0x10) Serial.print('0');
+            Serial.print(s.lastCmd, HEX);
+            Serial.print(F(" len=")); Serial.println(s.lastRxLen);
+        }
     }
-
     static uint32_t tSensors = 0;
     static uint32_t tLogic   = 0;
     static uint32_t tWeichen = 0;
@@ -153,7 +243,7 @@ void loop()
         {
             s_lastPayload = g_payload;
             g_payloadDirty = true;
-            updateDataReadyPin();
+            mega1SetPending(M1_PEND_STATUS | M1_PEND_DIAG);
         }
 
         // Status/Diag Snapshots für I2C onRequest vorbereiten

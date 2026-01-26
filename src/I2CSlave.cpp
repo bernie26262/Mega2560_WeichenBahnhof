@@ -53,9 +53,15 @@ static uint8_t s_len = 0;
 static bool    s_cmdResponsePending = false;
 static uint8_t s_cmdResponseOk      = 1;   // 1 = OK, 0 = FAIL
 
+// Pending/DRDY Steuerung (implementiert in main.cpp)
+extern void mega1SetPending(uint16_t bits);
+extern void mega1ClearPending(uint16_t bits);
+extern uint16_t mega1GetPending();
 
 // Für read-only Snapshot-Kommandos (ohne 1-Byte ACK davor)
-enum class NextResponse : uint8_t { NONE=0, DIAG=1 };
+enum class NextResponse : uint8_t { NONE=0, DIAG=1, PENDING=2 };
+// erweitert: zusätzlich pendingMask als read-only
+// (wie Mega2)
 static volatile NextResponse s_nextResponse = NextResponse::NONE;
 static volatile uint8_t s_diagSeq = 0;
 
@@ -193,6 +199,12 @@ void i2cOnReceive(int len)
                 wantAck = true;
             }
             break;
+        
+        case CMD_GET_PENDING_MASK:
+            // Read-only: nächste Read-Phase liefert pendingMask (uint16)
+            s_nextResponse = NextResponse::PENDING;
+            return;
+
 
         default:
             break;
@@ -213,7 +225,16 @@ void i2cOnRequest()
 {
     g_i2cReqCount++;
 
+       
     // WICHTIG: KEIN Serial im ISR
+    // Read-only: pendingMask (uint16)
+    if (s_nextResponse == NextResponse::PENDING)
+    {
+        s_nextResponse = NextResponse::NONE;
+        const uint16_t pm = mega1GetPending();
+        Wire.write((const uint8_t*)&pm, sizeof(pm));
+        return;
+    }
 
     // Read-only Snapshot: Diagnosepaket (<=32B)
     if (s_nextResponse == NextResponse::DIAG)
@@ -221,6 +242,7 @@ void i2cOnRequest()
         s_nextResponse = NextResponse::NONE;
 
         Wire.write((const uint8_t*)&s_diagSnap, sizeof(s_diagSnap));
+        mega1ClearPending(M1_PEND_DIAG);
         return;
     }
 
@@ -237,6 +259,8 @@ void i2cOnRequest()
     g_lastSentNode = s_statusSnap.nodeId;
     g_lastSentSize = s_statusSnap.size;
     Wire.write(reinterpret_cast<const uint8_t*>(&s_statusSnap), sizeof(s_statusSnap));
+    mega1ClearPending(M1_PEND_STATUS);
+    return;
 }
 
 // --------------------------------------------------
@@ -257,31 +281,38 @@ void i2cSlaveProcessQueue()
                     break;
                 modusController.setMode(newMode);
                 g_payloadDirty = true;
+                mega1SetPending(M1_PEND_STATUS | M1_PEND_DIAG);
                 break;
             }
 
             case CMD_SET_WEICHE:
                 (void)weichenHub.enqueueWeiche(it.a, it.b != 0);
+                // UI soll sofort reagieren
+                mega1SetPending(M1_PEND_STATUS | M1_PEND_DIAG);
                 break;
 
             case CMD_SET_BHF_POWER:
                 trackPowerHub.setPower(it.a, it.b != 0);
                 g_payloadDirty = true;
+                mega1SetPending(M1_PEND_STATUS | M1_PEND_DIAG);
                 break;
 
             case CMD_START_SELFTEST:
                 (void)weichenHub.startSelftest();
                 g_payloadDirty = true;
+                mega1SetPending(M1_PEND_STATUS | M1_PEND_DIAG);
                 break;
 
             case CMD_RELEASE_BHF:
                 bfController.manualRelease(it.a);
                 g_payloadDirty = true;
+                mega1SetPending(M1_PEND_STATUS | M1_PEND_DIAG);
                 break;
 
             case CMD_ACK_ERROR:
                 g_payload.errorFlags &= ~(uint8_t)it.a;
                 g_payloadDirty = true;
+                mega1SetPending(M1_PEND_STATUS | M1_PEND_DIAG);
                 break;
 
             default:

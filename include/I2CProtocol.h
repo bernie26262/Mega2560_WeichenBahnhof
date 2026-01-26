@@ -6,6 +6,12 @@
 // --------------------------------------------------
 constexpr uint8_t I2C_ADDR_MEGA1 = 0x10;
 
+// Mega1 DataReady / Pending (DRDY)
+// --------------------------------------------------
+constexpr uint8_t  CMD_GET_PENDING_MASK = 0xE0; // read-only: returns uint16_t pendingMask
+constexpr uint16_t M1_PEND_STATUS       = 0x0001;
+constexpr uint16_t M1_PEND_DIAG         = 0x0002;
+
 // --------------------------------------------------
 // I2C Kommandos
 // --------------------------------------------------
@@ -28,3 +34,4 @@ constexpr uint8_t CMD_GET_DIAG     = 0xD1;
 // Error Flags (Payload)
 // --------------------------------------------------
 constexpr uint8_t ERR_WEICHE = 0x01;
+
