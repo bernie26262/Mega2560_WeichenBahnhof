@@ -143,6 +143,18 @@ void setup()
     mega1SetPending(M1_PEND_STATUS | M1_PEND_DIAG);
 
     i2cSlaveBegin(I2C_ADDR_MEGA1);
+
+    // One-shot boot log: helps field-debug (no ISR logs)
+    {
+        const uint16_t pend = mega1GetPending();
+        const uint8_t drdyPin = (uint8_t)digitalRead(PIN_DATA_READY);
+        Serial.print(F("[M1BOOT] bootId=")); Serial.print(g_bootId);
+        Serial.print(F(" addr=0x"));
+        if (I2C_ADDR_MEGA1 < 0x10) Serial.print('0');
+        Serial.print(I2C_ADDR_MEGA1, HEX);
+        Serial.print(F(" i2c=READY drdyPin=")); Serial.print(drdyPin);
+        Serial.print(F(" pending=0x")); Serial.println(pend, HEX);
+    }
 }
 
 void loop()
@@ -155,6 +167,7 @@ void loop()
 
     // Mega2-Style Log (keine ISR-Logs!): alle 1000ms und on-change
     static uint32_t lastPrint = 0;
+    static uint32_t lastHeartbeat = 0;
     static uint16_t lastPend  = 0xFFFF;
     static uint32_t lastReq   = 0xFFFFFFFFUL;
     static uint32_t lastRx    = 0xFFFFFFFFUL;
@@ -170,11 +183,15 @@ void loop()
         const uint8_t drdyPin = (uint8_t)digitalRead(PIN_DATA_READY);
 
         const bool changed =
-            (pend != lastPend) || (s.reqCount != lastReq) || (s.rxCount != lastRx) ||
+            (pend != lastPend) ||
             (s.lastCmd != lastCmd) || (s.lastRxLen != lastLen);
 
-        if (changed)
+        const bool heartbeat = (now - lastHeartbeat) >= 10000;
+
+        if (changed || heartbeat)
         {
+            if (heartbeat) lastHeartbeat = now;
+
             lastPend = pend; lastReq = s.reqCount; lastRx = s.rxCount;
             lastCmd  = s.lastCmd; lastLen = s.lastRxLen;
 
