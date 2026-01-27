@@ -117,10 +117,6 @@ void setup()
     pinMode(20, INPUT_PULLUP);
     pinMode(21, INPUT_PULLUP);
 
-    // Defensive I2C bus release: SDA=20, SCL=21
-    pinMode(20, INPUT_PULLUP);
-    pinMode(21, INPUT_PULLUP);
-
     randomSeed(analogRead(0));
     g_bootId = (uint16_t)random(1, 65000);
 
@@ -255,12 +251,30 @@ void loop()
         g_payload.activeRoute     = fahrstrassen.activeRoute();
         g_payload.modus           = (uint8_t)modusController.mode();
 
-        // Change Detection -> nur bei Änderung DRDY aktivieren
-        if (memcmp(&g_payload, &s_lastPayload, sizeof(g_payload)) != 0)
+        // Change Detection (relevant fields only) -> nur bei Änderung DRDY aktivieren
+        // WICHTIG: Keine DIAG-Pending-Bits hier setzen. DIAG soll nur bei echten
+        // Diagnose-/Kommandostatus-Änderungen ausgelöst werden (sonst bleibt DRDY dauerhaft LOW).
+        const bool statusChanged =
+            (g_payload.kontaktBits    != s_lastPayload.kontaktBits)    ||
+            (g_payload.weichenBits    != s_lastPayload.weichenBits)    ||
+            (g_payload.weichenIstBits != s_lastPayload.weichenIstBits) ||
+            (g_payload.weichenOkBits  != s_lastPayload.weichenOkBits)  ||
+            (g_payload.activeRoute    != s_lastPayload.activeRoute)    ||
+            (g_payload.modus          != s_lastPayload.modus);
+
+        if (statusChanged)
+         
         {
-            s_lastPayload = g_payload;
+            // Nur die relevanten Felder übernehmen, damit Debug-/Counter-Felder (falls vorhanden)
+            // nicht ständig einen "Change" auslösen.
+            s_lastPayload.kontaktBits    = g_payload.kontaktBits;
+            s_lastPayload.weichenBits    = g_payload.weichenBits;
+            s_lastPayload.weichenIstBits = g_payload.weichenIstBits;
+            s_lastPayload.weichenOkBits  = g_payload.weichenOkBits;
+            s_lastPayload.activeRoute    = g_payload.activeRoute;
+            s_lastPayload.modus          = g_payload.modus;
             g_payloadDirty = true;
-            mega1SetPending(M1_PEND_STATUS | M1_PEND_DIAG);
+            mega1SetPending(M1_PEND_STATUS);
         }
 
         // Status/Diag Snapshots für I2C onRequest vorbereiten
