@@ -277,6 +277,61 @@ void loop()
             mega1SetPending(M1_PEND_STATUS);
         }
 
+        // ---------------- DIAG Pending (nur bei relevanter Änderung) ----------------
+        // Ziel: DIAG nur "on change" (Selftest start/step/done/fail), damit DRDY nicht dauerhaft LOW bleibt,
+        // aber das Overlay zuverlässig endet.
+        static uint8_t  s_lastStFlags = 0xFF;
+        static uint16_t s_lastStFail  = 0xFFFF;
+        static uint8_t  s_lastStIdx   = 0xFF;
+        static uint16_t s_lastIstBits = 0xFFFF;
+        static uint16_t s_lastSollBits= 0xFFFF;
+        static uint16_t s_lastSlowBits= 0xFFFF;
+        static uint8_t  s_lastPwrMask = 0xFF;
+        static uint8_t  s_lastMode    = 0xFF;
+
+        uint8_t stFlags = 0;
+        if (weichenHub.isSelftestActive()) stFlags |= 0x01u; // running
+        if (weichenHub.isSelftestDone())   stFlags |= 0x02u; // done
+
+        const uint16_t mask = (NUM_WEICHEN >= 16) ? 0xFFFFu : (uint16_t)((1u << NUM_WEICHEN) - 1u);
+        const uint16_t stFail = (uint16_t)(weichenHub.selftestFailMask() & mask);
+        const uint8_t  stIdx  = (uint8_t)weichenHub.selftestCurrentIdx(); // 0xFF wenn inaktiv
+
+        // Weichen-/Power/Mode-Felder, die im DIAG-Snapshot landen (und von der UI genutzt werden)
+        const uint16_t istBits  = (uint16_t)(weichenHub.buildWeichenIstBits()        & mask);
+        const uint16_t sollBits = (uint16_t)(weichenHub.buildWeichenBits()           & mask);
+        const uint16_t slowBits = (uint16_t)(weichenHub.buildWeichenSlowActiveBits() & mask);
+
+        uint8_t pwrMask = 0;
+        for (uint8_t i = 0; i < BHF_COUNT; ++i)
+            if (digitalRead(BHF_TRACK_POWER_PIN[i]) == HIGH)
+                pwrMask |= (1u << i);
+
+        const uint8_t modeNow = (uint8_t)modusController.mode();
+
+        const bool diagChanged =
+            (stFlags != s_lastStFlags) ||
+            (stFail  != s_lastStFail)  ||
+            (stIdx   != s_lastStIdx)   ||
+            (istBits != s_lastIstBits) ||
+            (sollBits!= s_lastSollBits)||
+            (slowBits!= s_lastSlowBits)||
+            (pwrMask != s_lastPwrMask) ||
+            (modeNow != s_lastMode);
+
+        if (diagChanged)
+        {
+            s_lastStFlags = stFlags;
+            s_lastStFail  = stFail;
+            s_lastStIdx   = stIdx;
+            s_lastIstBits = istBits;
+            s_lastSollBits= sollBits;
+            s_lastSlowBits= slowBits;
+            s_lastPwrMask = pwrMask;
+            s_lastMode    = modeNow;
+            mega1SetPending(M1_PEND_DIAG);
+        }
+
         // Status/Diag Snapshots für I2C onRequest vorbereiten
         i2cSlaveUpdateSnapshots();
     }
