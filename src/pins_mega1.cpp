@@ -95,8 +95,8 @@ void initPinsMega1()
     {
         pinMode(WEICHEN_PINS[i].pinG, OUTPUT);
         pinMode(WEICHEN_PINS[i].pinA, OUTPUT);
-        digitalWrite(WEICHEN_PINS[i].pinG, LOW);
-        digitalWrite(WEICHEN_PINS[i].pinA, LOW);
+        digitalWrite(WEICHEN_PINS[i].pinG, HIGH);
+        digitalWrite(WEICHEN_PINS[i].pinA, HIGH);
 
         if (WEICHEN_PINS[i].hasRed && WEICHEN_PINS[i].pinRed != 255)
         {

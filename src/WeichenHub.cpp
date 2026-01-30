@@ -3,6 +3,8 @@
 // Hinweis: Rückmeldung: LOW = ABBIEGEN, HIGH = GERADE (siehe readIstGerade)
 // WEICHEN_GRUNDSTELLUNG kommt aus pins_mega1.h via WeichenHub.h
 
+static constexpr uint32_t RUECK_POLL_MS = 20;
+
 void WeichenHub::begin()
 {
     for (uint8_t i = 0; i < NUM_WEICHEN; ++i)
@@ -15,12 +17,10 @@ void WeichenHub::begin()
 
         m_status[i] = WeichenStatus{};
         m_status[i].lastSollGerade = grundGerade;
-        m_status[i].lastIstGerade  = readIstGerade(i);
         m_status[i].lastCheckOk   = true;
         m_status[i].everChecked  = false;
 
         m_cooldownUntil[i] = 0;
-        m_redActive[i]     = false;
 
         // LOW-Level-Relais: AUS = HIGH
         pinMode(WEICHEN_PINS[i].pinG, OUTPUT);
@@ -28,15 +28,23 @@ void WeichenHub::begin()
         digitalWrite(WEICHEN_PINS[i].pinG, HIGH);
         digitalWrite(WEICHEN_PINS[i].pinA, HIGH);
 
+        // Rückmelder zuerst konfigurieren, dann Ist lesen
+        pinMode(WEICHEN_PINS[i].pinRueck, INPUT_PULLUP);
+        const bool istGeradeNow     = readIstGerade(i);
+        m_status[i].lastIstGerade  = istGeradeNow;
+
+        // Reduktions-Relais Zustand aus IST ableiten (Abbiegen => true)
+        const bool hasRed = (WEICHEN_PINS[i].hasRed && WEICHEN_PINS[i].pinRed != 255);
+        m_redActive[i] = hasRed ? (!istGeradeNow) : false;
+
         // Reduktions-Relais (optional)
         if (WEICHEN_PINS[i].hasRed && WEICHEN_PINS[i].pinRed != 255)
         {
             pinMode(WEICHEN_PINS[i].pinRed, OUTPUT);
-            digitalWrite(WEICHEN_PINS[i].pinRed, HIGH); // AUS
+            // LOW-Level-Relais: LOW = Reduktion aktiv (Abbiegen)
+            digitalWrite(WEICHEN_PINS[i].pinRed, istGeradeNow ? HIGH : LOW);
         }
-
-        // Rückmelder
-        pinMode(WEICHEN_PINS[i].pinRueck, INPUT_PULLUP);
+        
     }
 
     m_qHead = m_qTail = m_qCount = 0;
@@ -67,6 +75,14 @@ bool WeichenHub::enqueueWeiche(uint8_t index, bool gerade)
     // Soll-Zustand merken
     m_state[index] = gerade;
     m_status[index].lastSollGerade = gerade;
+
+    // Reduktions-Relais passend zum Sollzustand setzen (falls vorhanden)
+    if (WEICHEN_PINS[index].hasRed && WEICHEN_PINS[index].pinRed != 255)
+    {
+        // LOW-Level-Relais: LOW = Reduktion aktiv (Abbiegen)
+        digitalWrite(WEICHEN_PINS[index].pinRed, gerade ? HIGH : LOW);
+        m_redActive[index] = (!gerade);
+    }
 
     return true;
 }
@@ -110,11 +126,12 @@ void WeichenHub::startPulseCustom(uint8_t index, bool gerade, uint32_t pulseMs)
 {
     const WPins& p = WEICHEN_PINS[index];
 
-    // Reduktion EIN
+    // Reduktions-Relais passend zum Zielzustand setzen (Abbiegen => LOW)
     if (p.hasRed && p.pinRed != 255)
     {
-        digitalWrite(p.pinRed, LOW);
-        m_redActive[index] = true;
+        // LOW-Level-Relais: LOW = Reduktion aktiv (Abbiegen)
+        digitalWrite(p.pinRed, gerade ? HIGH : LOW);
+        m_redActive[index] = (!gerade);
     }
 
     // Spulen AUS
@@ -143,12 +160,7 @@ void WeichenHub::stopPulseOnly(uint8_t index)
     digitalWrite(p.pinG, HIGH);
     digitalWrite(p.pinA, HIGH);
 
-    // Reduktion AUS
-    if (p.hasRed && p.pinRed != 255)
-    {
-        digitalWrite(p.pinRed, HIGH);
-        m_redActive[index] = false;
-    }
+    // Reduktions-Relais bleibt im Zustand entsprechend IST/SOLL (nicht pulsen)
 }
 
 void WeichenHub::stopPulseAndCheck(const Cmd& cmd)
@@ -159,15 +171,17 @@ void WeichenHub::stopPulseAndCheck(const Cmd& cmd)
     digitalWrite(p.pinG, HIGH);
     digitalWrite(p.pinA, HIGH);
 
-    // Reduktion AUS
-    if (p.hasRed && p.pinRed != 255)
-    {
-        digitalWrite(p.pinRed, HIGH);
-        m_redActive[cmd.index] = false;
-    }
+    // Reduktions-Relais bleibt im Zustand entsprechend IST/SOLL (nicht pulsen)
 
     bool istGerade  = readIstGerade(cmd.index);
     bool sollGerade = cmd.gerade;
+
+    // Reduktions-Relais auf IST synchronisieren (falls vorhanden)
+    if (p.hasRed && p.pinRed != 255)
+    {
+        digitalWrite(p.pinRed, istGerade ? HIGH : LOW);
+        m_redActive[cmd.index] = (!istGerade);
+    }
 
     WeichenStatus& st = m_status[cmd.index];
     st.lastIstGerade  = istGerade;
@@ -242,7 +256,8 @@ void WeichenHub::selftestStartPulse(uint32_t nowMs)
 
 void WeichenHub::selftestStartSettle(uint32_t nowMs)
 {
-    // Puls beenden (Spulen AUS + Reduktion AUS), dann settle abwarten
+    // Puls beenden (Spulen AUS), dann settle abwarten
+    // Reduktions-Relais bleibt persistent nach Weichenlage
     stopPulseOnly(m_stIndex);
     m_pulseActive = false;
 
@@ -257,6 +272,15 @@ void WeichenHub::selftestStartSettle(uint32_t nowMs)
 void WeichenHub::selftestEvalAndAdvance(uint32_t nowMs)
 {
     const bool istGerade = readIstGerade(m_stIndex);
+
+    // Reduktions-Relais auf IST synchronisieren (falls vorhanden)
+    const WPins& p = WEICHEN_PINS[m_stIndex];
+    if (p.hasRed && p.pinRed != 255)
+    {
+        digitalWrite(p.pinRed, istGerade ? HIGH : LOW);
+        m_redActive[m_stIndex] = (!istGerade);
+    }
+
     const bool ok = (istGerade == m_stTargetGerade);
 
     const uint16_t bit = (1u << m_stIndex);
@@ -409,6 +433,41 @@ void WeichenHub::update()
     }
 }
 
+void WeichenHub::pollRueckmelders(uint32_t now)
+{
+    // Nicht während Selftest oder Spulenpuls live nachziehen:
+    // dort werden IST-Werte gezielt an definierten Punkten gelesen.
+    if (m_stActive || m_pulseActive) return;
+
+    // 20ms Poll reicht völlig, entprellt quasi nebenbei
+    if ((uint32_t)(now - m_lastRueckPollMs) < 20) return;
+    m_lastRueckPollMs = now;
+
+    for (uint8_t i = 0; i < NUM_WEICHEN; ++i)
+    {
+       const auto& p = WEICHEN_PINS[i];
+        const bool istNow = (digitalRead(p.pinRueck) == HIGH); // HIGH=GERADE (pullup), LOW=ABBIEGEN
+
+        if (istNow != m_status[i].lastIstGerade)
+        {
+            m_status[i].lastIstGerade = istNow;
+
+            // Reduktions-Relais folgt IST, aber nur falls vorhanden
+            const bool hasRed = (p.hasRed && p.pinRed != 255);
+            if (hasRed)
+            {
+                // LOW-Level-Relais: LOW = Reduktion aktiv (Abbiegen)
+                digitalWrite(p.pinRed, istNow ? HIGH : LOW);
+                m_redActive[i] = (!istNow);
+            }
+            else
+            {
+                m_redActive[i] = false;
+            }
+        }
+    }
+}
+
 uint16_t WeichenHub::buildWeichenBits() const
 {
     uint16_t bits = 0;
@@ -437,7 +496,7 @@ uint16_t WeichenHub::buildWeichenOkBits() const
     return bits;
 }
 
-uint16_t WeichenHub::buildWeichenSlowActiveBits() const
+uint16_t WeichenHub::buildWeichenSlowSelectedBits() const
 {
     uint16_t bits = 0;
     for (uint8_t i = 0; i < NUM_WEICHEN; ++i)

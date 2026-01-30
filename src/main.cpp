@@ -12,6 +12,13 @@
 #include "I2CSlave.h"
 #include "I2CProtocol.h"
 
+// --------------------------------------------------
+// Debug: Trace input-driven changes (Weichen IST, PowerMask)
+// Set to 0 to silence.
+#ifndef DEBUG_M1_TRACE_INPUTS
+#define DEBUG_M1_TRACE_INPUTS 1
+#endif
+
 
 // --------------------------------------------------
 // DataReady / Pending (Mega1 -> ESP)
@@ -127,6 +134,9 @@ void setup()
     modusController.begin();
     trackPowerHub.begin();
 
+    // Force first stable DIAG after inputs are settled
+    mega1SetPending(M1_PEND_DIAG);
+
     pinMode(PIN_DATA_READY, INPUT); // DRDY idle HIGH (open-drain)
     updateDataReadyPin(mega1GetPending());
 
@@ -204,6 +214,20 @@ void loop()
             if (s.lastCmd < 0x10) Serial.print('0');
             Serial.print(s.lastCmd, HEX);
             Serial.print(F(" len=")); Serial.println(s.lastRxLen);
+            Serial.print(F(" len=")); Serial.print(s.lastRxLen);
+            #if DEBUG_M1_TRACE_INPUTS
+            // Zusatz: relevante Zustände, die UI/ESP interessieren
+            Serial.print(F(" ist=0x"));
+            Serial.print((uint16_t)g_payload.weichenIstBits, HEX);
+            Serial.print(F(" soll=0x"));
+            Serial.print((uint16_t)g_payload.weichenBits, HEX);
+            Serial.print(F(" ok=0x"));
+            Serial.print((uint16_t)g_payload.weichenOkBits, HEX);
+            Serial.print(F(" pwr=0x"));
+            uint8_t pm=0; for(uint8_t i=0;i<BHF_COUNT;++i) if(digitalRead(BHF_TRACK_POWER_PIN[i])==HIGH) pm|=(1u<<i);
+            Serial.print(pm, HEX);
+            #endif
+            Serial.println();
         }
     }
     static uint32_t tSensors = 0;
@@ -234,6 +258,7 @@ void loop()
     if (now - tWeichen >= 5)
     {
         tWeichen = now;
+        weichenHub.pollRueckmelders(now);
         weichenHub.update();
     }
 
@@ -251,6 +276,10 @@ void loop()
         g_payload.activeRoute     = fahrstrassen.activeRoute();
         g_payload.modus           = (uint8_t)modusController.mode();
 
+        // Collect pending bits and set them once per loop -> avoids race with I2C onRequest
+        uint16_t pendAdd = 0;
+
+
         // Change Detection (relevant fields only) -> nur bei Änderung DRDY aktivieren
         // WICHTIG: Keine DIAG-Pending-Bits hier setzen. DIAG soll nur bei echten
         // Diagnose-/Kommandostatus-Änderungen ausgelöst werden (sonst bleibt DRDY dauerhaft LOW).
@@ -265,7 +294,16 @@ void loop()
         if (statusChanged)
          
         {
-            // Nur die relevanten Felder übernehmen, damit Debug-/Counter-Felder (falls vorhanden)
+            
+#if DEBUG_M1_TRACE_INPUTS
+            Serial.print(F("[M1] statusChanged: kontakt=0x")); Serial.print(g_payload.kontaktBits, HEX);
+            Serial.print(F(" ist=0x")); Serial.print(g_payload.weichenIstBits, HEX);
+            Serial.print(F(" soll=0x")); Serial.print(g_payload.weichenBits, HEX);
+            Serial.print(F(" ok=0x")); Serial.print(g_payload.weichenOkBits, HEX);
+            Serial.print(F(" route=")); Serial.print(g_payload.activeRoute);
+            Serial.print(F(" mode=")); Serial.println(g_payload.modus);
+#endif
+// Nur die relevanten Felder übernehmen, damit Debug-/Counter-Felder (falls vorhanden)
             // nicht ständig einen "Change" auslösen.
             s_lastPayload.kontaktBits    = g_payload.kontaktBits;
             s_lastPayload.weichenBits    = g_payload.weichenBits;
@@ -274,7 +312,15 @@ void loop()
             s_lastPayload.activeRoute    = g_payload.activeRoute;
             s_lastPayload.modus          = g_payload.modus;
             g_payloadDirty = true;
-            mega1SetPending(M1_PEND_STATUS);
+            pendAdd |= M1_PEND_STATUS;
+            #if DEBUG_M1_TRACE_INPUTS
+            {
+                const uint16_t pm = mega1GetPending();
+                const uint8_t  dr = (uint8_t)digitalRead(PIN_DATA_READY);
+                Serial.print(F("[M1] setPending STATUS -> pm=0x")); Serial.print(pm, HEX);
+                Serial.print(F(" drdy=")); Serial.println(dr);
+            }
+            #endif
         }
 
         // ---------------- DIAG Pending (nur bei relevanter Änderung) ----------------
@@ -297,10 +343,16 @@ void loop()
         const uint16_t stFail = (uint16_t)(weichenHub.selftestFailMask() & mask);
         const uint8_t  stIdx  = (uint8_t)weichenHub.selftestCurrentIdx(); // 0xFF wenn inaktiv
 
+        // --- NEW: force DIAG update on selftest end ---
+        if ((s_lastStIdx != 0xFF) && (stIdx == 0xFF))
+        {
+            pendAdd |= M1_PEND_DIAG;
+        }
+
         // Weichen-/Power/Mode-Felder, die im DIAG-Snapshot landen (und von der UI genutzt werden)
         const uint16_t istBits  = (uint16_t)(weichenHub.buildWeichenIstBits()        & mask);
         const uint16_t sollBits = (uint16_t)(weichenHub.buildWeichenBits()           & mask);
-        const uint16_t slowBits = (uint16_t)(weichenHub.buildWeichenSlowActiveBits() & mask);
+        const uint16_t slowBits = (uint16_t)(weichenHub.buildWeichenSlowSelectedBits() & mask);
 
         uint8_t pwrMask = 0;
         for (uint8_t i = 0; i < BHF_COUNT; ++i)
@@ -321,6 +373,16 @@ void loop()
 
         if (diagChanged)
         {
+#if DEBUG_M1_TRACE_INPUTS
+            Serial.print(F("[M1] diagChanged: stFlags=0x")); Serial.print(stFlags, HEX);
+            Serial.print(F(" fail=0x")); Serial.print(stFail, HEX);
+            Serial.print(F(" idx=")); Serial.print(stIdx);
+            Serial.print(F(" ist=0x")); Serial.print(istBits, HEX);
+            Serial.print(F(" soll=0x")); Serial.print(sollBits, HEX);
+            Serial.print(F(" slowSel=0x")); Serial.print(slowBits, HEX);
+            Serial.print(F(" pwr=0x")); Serial.print(pwrMask, HEX);
+            Serial.print(F(" mode=")); Serial.println(modeNow);
+#endif            
             s_lastStFlags = stFlags;
             s_lastStFail  = stFail;
             s_lastStIdx   = stIdx;
@@ -329,7 +391,21 @@ void loop()
             s_lastSlowBits= slowBits;
             s_lastPwrMask = pwrMask;
             s_lastMode    = modeNow;
-            mega1SetPending(M1_PEND_DIAG);
+            pendAdd |= M1_PEND_DIAG;
+        }
+
+        // Apply pending bits AFTER snapshots are updated (prevents ISR race between STATUS and DIAG)
+        if (pendAdd)
+        {
+            mega1SetPending(pendAdd);
+#if DEBUG_M1_TRACE_INPUTS
+            const uint16_t pm = mega1GetPending();
+            const uint8_t  dr = (uint8_t)digitalRead(PIN_DATA_READY);
+            Serial.print(F("[M1] setPending COMBINED=0x")); Serial.print(pendAdd, HEX);
+            Serial.print(F(" -> pm=0x")); Serial.print(pm, HEX);
+            Serial.print(F(" drdy=")); Serial.println(dr);
+#endif
+
         }
 
         // Status/Diag Snapshots für I2C onRequest vorbereiten

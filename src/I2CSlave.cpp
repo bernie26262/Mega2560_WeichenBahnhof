@@ -63,6 +63,7 @@ enum class NextResponse : uint8_t { NONE=0, DIAG=1, PENDING=2 };
 // erweitert: zusätzlich pendingMask als read-only
 // (wie Mega2)
 static volatile NextResponse s_nextResponse = NextResponse::NONE;
+static volatile bool s_pendingPrimed = false; // set after pending-mask read; allows clearing pending on subsequent reads
 static volatile uint8_t s_diagSeq = 0;
 
 // --------------------------------------------------
@@ -233,6 +234,9 @@ void i2cOnRequest()
         s_nextResponse = NextResponse::NONE;
         const uint16_t pm = mega1GetPending();
         Wire.write((const uint8_t*)&pm, sizeof(pm));
+        // Priming: only clear pending bits after the master explicitly queried the pending-mask.
+        // This prevents "background" status/diag reads from clearing DRDY too quickly.
+        s_pendingPrimed = (pm != 0);
         return;
     }
 
@@ -242,7 +246,11 @@ void i2cOnRequest()
         s_nextResponse = NextResponse::NONE;
 
         Wire.write((const uint8_t*)&s_diagSnap, sizeof(s_diagSnap));
-        mega1ClearPending(M1_PEND_DIAG);
+        if (s_pendingPrimed)
+        {
+            mega1ClearPending(M1_PEND_DIAG);
+            if (mega1GetPending() == 0) s_pendingPrimed = false;
+        }
         return;
     }
 
@@ -259,7 +267,11 @@ void i2cOnRequest()
     g_lastSentNode = s_statusSnap.nodeId;
     g_lastSentSize = s_statusSnap.size;
     Wire.write(reinterpret_cast<const uint8_t*>(&s_statusSnap), sizeof(s_statusSnap));
-    mega1ClearPending(M1_PEND_STATUS);
+    if (s_pendingPrimed)
+    {
+        mega1ClearPending(M1_PEND_STATUS);
+        if (mega1GetPending() == 0) s_pendingPrimed = false;
+    }
     return;
 }
 
@@ -334,7 +346,7 @@ void i2cSlaveUpdateSnapshots()
     const uint16_t mask = (NUM_WEICHEN >= 16) ? 0xFFFFu : (uint16_t)((1u << NUM_WEICHEN) - 1u);
     d.weicheIstGeradeBits  = (uint16_t)(weichenHub.buildWeichenIstBits()  & mask);
     d.weicheSollGeradeBits = (uint16_t)(weichenHub.buildWeichenBits()     & mask);
-    d.weicheSlowActiveBits = (uint16_t)(weichenHub.buildWeichenSlowActiveBits() & mask);
+    d.weicheSlowSelectedBits = (uint16_t)(weichenHub.buildWeichenSlowSelectedBits() & mask);
 
     uint8_t pm = 0;
     for (uint8_t i = 0; i < BHF_COUNT; ++i)

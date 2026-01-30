@@ -7,8 +7,8 @@
 // Konfiguration
 // ==================================================
 #define WEICHE_QUEUE_SIZE   8
-#define WEICHE_PULSE_MS     120
-#define WEICHE_COOLDOWN_MS  300
+#define WEICHE_PULSE_MS     500
+#define WEICHE_COOLDOWN_MS  500
 
 
 // ==================================================
@@ -58,6 +58,9 @@ public:
     // Lifecycle
     void begin();
     void update();
+    
+    // Rueckmelder-Pins regelmaessig einlesen (damit Pin-Toggles sichtbar werden)
+    void pollRueckmelders(uint32_t now);
 
     // Commands
     bool enqueueWeiche(uint8_t index, bool gerade);
@@ -70,7 +73,8 @@ public:
     uint16_t buildWeichenBits() const;            // Soll (Gerade)
     uint16_t buildWeichenIstBits() const;         // Ist (Gerade)
     uint16_t buildWeichenOkBits() const;          // OK / FAIL
-    uint16_t buildWeichenSlowActiveBits() const;  // Reduktion aktiv (pinRed LOW)
+    // "Slow/Reduktion ausgewählt" (typisch Abbiegen => 1)
+    uint16_t buildWeichenSlowSelectedBits() const;
 
     // Einzelabfragen
     bool lastCheckOk(uint8_t index) const;
@@ -99,8 +103,11 @@ private:
     uint32_t       m_cooldownUntil[NUM_WEICHEN];
     WeichenStatus  m_status[NUM_WEICHEN];
 
-    // Reduktions-Relais aktiv (Debug / Diagnose)
+    // Reduktions-Relais Zustand (Abbiegen => true) (Diagnose)
     bool           m_redActive[NUM_WEICHEN];
+
+    // Rueckmelder-Poll-Rate
+    uint32_t       m_lastRueckPollMs = 0;
 
     // --------------------------------------------------
     // Selbsttest-State
