@@ -1,5 +1,6 @@
 #pragma once
 #include <stdint.h>
+#include <stddef.h> // offsetof
 
 // =====================================================
 // Mega1 Diagnosepaket (read-only, <= 32 Bytes, V1)
@@ -47,3 +48,7 @@ struct Mega1DiagV1
 #pragma pack(pop)
 
 static_assert(sizeof(Mega1DiagV1) <= 32, "Mega1DiagV1 must fit into a single I2C frame (<=32B).");
+static_assert(offsetof(Mega1DiagV1, weicheIstGeradeBits) + 2 == offsetof(Mega1DiagV1, weicheSollGeradeBits),
+              "Mega1DiagV1 layout mismatch: SOLL must follow IST");
+static_assert(offsetof(Mega1DiagV1, weicheSollGeradeBits) + 2 == offsetof(Mega1DiagV1, weicheSlowSelectedBits),
+              "Mega1DiagV1 layout mismatch: SLOW must follow SOLL");

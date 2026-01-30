@@ -1,4 +1,10 @@
 #include "WeichenHub.h"
+#include <Arduino.h>
+
+static inline const char* gaFromHigh(bool high)
+{
+    return high ? "G" : "A"; // HIGH = Gerade, LOW = Abbiegen
+}
 
 // Hinweis: Rückmeldung: LOW = ABBIEGEN, HIGH = GERADE (siehe readIstGerade)
 // WEICHEN_GRUNDSTELLUNG kommt aus pins_mega1.h via WeichenHub.h
@@ -443,10 +449,17 @@ void WeichenHub::pollRueckmelders(uint32_t now)
     if ((uint32_t)(now - m_lastRueckPollMs) < 20) return;
     m_lastRueckPollMs = now;
 
+    // Rohwerte sammeln: HIGH=1, LOW=0
+    uint16_t rawBits = 0;
+
+
     for (uint8_t i = 0; i < NUM_WEICHEN; ++i)
     {
-       const auto& p = WEICHEN_PINS[i];
-        const bool istNow = (digitalRead(p.pinRueck) == HIGH); // HIGH=GERADE (pullup), LOW=ABBIEGEN
+        const auto& p = WEICHEN_PINS[i];
+        const bool high = (digitalRead(p.pinRueck) == HIGH); // HIGH=GERADE (pullup), LOW=ABBIEGEN
+        if (high) rawBits |= (1U << i);
+
+        const bool istNow = high;
 
         if (istNow != m_status[i].lastIstGerade)
         {
@@ -465,6 +478,50 @@ void WeichenHub::pollRueckmelders(uint32_t now)
                 m_redActive[i] = false;
             }
         }
+    }
+
+    
+    // -------------------------------------------------
+    // Rueckmelder Debug: Log bei Aenderung + periodisch
+    // -------------------------------------------------
+    const bool changed  = (rawBits != m_lastRueckRawBits);
+    const bool periodic = ((uint32_t)(now - m_lastRueckLogMs) >= 1000);
+
+    if (changed || periodic)
+    {
+        m_lastRueckLogMs = now;
+        const uint16_t diff = rawBits ^ m_lastRueckRawBits;
+
+        Serial.print(F("[RM] t="));
+        Serial.print(now);
+        Serial.print(F(" raw=0x"));
+        Serial.print(rawBits, HEX);
+
+        if (changed)
+        {
+            Serial.print(F(" diff=0x"));
+            Serial.print(diff, HEX);
+            Serial.print(F(" {"));
+
+            for (uint8_t i = 0; i < NUM_WEICHEN; ++i)
+            {
+                if ((diff >> i) & 1U)
+                {
+                    const bool h = ((rawBits >> i) & 1U) != 0;
+                    Serial.print(F(" W"));
+                    Serial.print(i);
+                    Serial.print(F("="));
+                    Serial.print(h ? F("H") : F("L"));
+                    Serial.print(F("("));
+                    Serial.print(h ? F("G") : F("A"));
+                    Serial.print(F(")"));
+                }
+            }
+            Serial.print(F(" }"));
+        }
+
+        Serial.println();
+        m_lastRueckRawBits = rawBits;
     }
 }
 

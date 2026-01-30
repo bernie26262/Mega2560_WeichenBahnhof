@@ -108,6 +108,11 @@ private:
 
     // Rueckmelder-Poll-Rate
     uint32_t       m_lastRueckPollMs = 0;
+    
+    // Rueckmelder Debug: Rohwerte aller Rueckmelder (HIGH=1 / LOW=0)
+    // - Log bei Aenderung + periodisch (1s)
+    uint16_t       m_lastRueckRawBits = 0xFFFF;
+    uint32_t       m_lastRueckLogMs   = 0;
 
     // --------------------------------------------------
     // Selbsttest-State
