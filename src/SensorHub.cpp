@@ -18,8 +18,18 @@ void SensorHub::update()
 
     for (uint8_t i = 0; i < NUM_SENSORS; ++i)
     {
+        const int8_t pin = SENSOR_PINS[i];
+        if (pin < 0) {
+            // Unbenutzter Sensor-Slot -> garantiert keine Aktivität, kein Change
+            // (wichtig: kein digitalRead(-1)!)
+            if (m_db[i].trainPresent) {
+                m_db[i].trainPresent = false;
+            }
+            continue;
+        }
+
         // LOW = Sensor aktiv
-        bool rawActive = (digitalRead(SENSOR_PINS[i]) == LOW);
+        bool rawActive = (digitalRead((uint8_t)pin) == LOW);
 
         // Sperre ggf. aufheben
         if (m_db[i].blocked && (int32_t)(now - m_db[i].unblockAtMs) >= 0)

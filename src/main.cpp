@@ -118,6 +118,12 @@ void setup()
     Serial.println();
     Serial.println(F("=== Mega1 boot ==="));
 
+    // Startup-Checklist Flags:
+    // selftestDone muss nach jedem Mega1-Boot wieder "0" sein,
+    // damit das ESP/UI den Selftest deterministisch anfordern und beobachten kann.
+    weichenHub.clearSelftestDone();
+
+
     initPinsMega1();
 
     // Defensive I2C bus release (Mega2560: SDA=20, SCL=21)
