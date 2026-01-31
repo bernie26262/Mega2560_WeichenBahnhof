@@ -30,12 +30,12 @@ const int8_t SENSOR_PINS[NUM_SENSORS] =
     -1, // 17
 
     // Timerstart-Sensoren:
-    A9,  // 18 - S18 (Bhf1 Timerstart)
-    A8,  // 19 - S19 (Bhf0 Timerstart)
+    29,  // 18 - S18 (Bhf1 Timerstart)  [NEU]
+    26,  // 19 - S19 (Bhf0 Timerstart)  [NEU]
     -1,  // 20 - frei
     -1,  // 21 - frei
-    A10, // 22 - S22 (Bhf2 Timerstart)
-    A11  // 23 - S23 (Bhf3 Timerstart)
+    30,  // 22 - S22 (Bhf2 Timerstart)  [NEU]
+    36   // 23 - S23 (Bhf3 Timerstart)  [NEU]
 };
 
 // Bahnhöfe 0–3 zu Einfahrts-Sensor:
@@ -63,7 +63,7 @@ const WPins WEICHEN_PINS[NUM_WEICHEN] =
     {5,  6,  255, 38, false}, // W0
     {8,  9,  255, 39, false}, // W1
     {10, 11, 255, 40, false}, // W2
-    {12, 13, 255, 41, false}, // W3
+    {12, 7,  255, 41, false}, // W3 (A von D13 -> D7)
     {14, 15, 255, 42, false}, // W4
     {16, 17, 255, 43, false}, // W5
 

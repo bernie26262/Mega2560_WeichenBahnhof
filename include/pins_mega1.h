@@ -32,10 +32,10 @@ enum SensorIndex : uint8_t
     SENSOR_S10 = 10, // Pin 34 - Fahrstraße
 
     // Timer-Start-Sensoren:
-    SENSOR_S18 = 18, // Pin A9  - Bhf1 Timerstart
-    SENSOR_S19 = 19, // Pin A8  - Bhf0 Timerstart
-    SENSOR_S22 = 22, // Pin A10 - Bhf2 Timerstart
-    SENSOR_S23 = 23  // Pin A11 - Bhf3 Timerstart
+    SENSOR_S18 = 18, // Pin D29 - Bhf1 Timerstart
+    SENSOR_S19 = 19, // Pin D26 - Bhf0 Timerstart
+    SENSOR_S22 = 22, // Pin D30 - Bhf2 Timerstart
+    SENSOR_S23 = 23  // Pin D36 - Bhf3 Timerstart
 };
 
 // ---------------------------------------------------------------------------
