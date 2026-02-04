@@ -246,6 +246,12 @@ void loop()
     {
         tSensors = now;
         sensorHub.update();
+
+        if (sensorHub.consumeDiagDirty())
+        {
+            i2cSlaveUpdateSnapshots();      // <-- NEU: Snapshot sofort auf "jetzt" bringen
+            mega1SetPending(M1_PEND_DIAG);  // <-- dann erst DRDY triggern
+        }
     }
 
     // ---------------- Logik (nur AUTO) ----------------
@@ -400,6 +406,11 @@ void loop()
             pendAdd |= M1_PEND_DIAG;
         }
 
+        // Status/Diag Snapshots für I2C onRequest vorbereiten
+        // IMPORTANT: update snapshots BEFORE setting pending/DRDY.
+        // Otherwise the ESP may read the *previous* snapshot ("one frame late").
+        i2cSlaveUpdateSnapshots();
+
         // Apply pending bits AFTER snapshots are updated (prevents ISR race between STATUS and DIAG)
         if (pendAdd)
         {
@@ -413,8 +424,5 @@ void loop()
 #endif
 
         }
-
-        // Status/Diag Snapshots für I2C onRequest vorbereiten
-        i2cSlaveUpdateSnapshots();
     }
 }

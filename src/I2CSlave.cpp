@@ -4,6 +4,7 @@
 #include "system/mega1_diag_payload.h"
 
 #include "payload.h"
+#include "SensorHub.h"
 #include "WeichenHub.h"
 #include "Modus.h"
 #include "BahnhofController.h"
@@ -15,6 +16,7 @@
 
 // Globale Objekte (definiert in main.cpp)
 extern WeichenHub        weichenHub;
+extern SensorHub         sensorHub;
 extern BahnhofController bfController;
 extern TrackPowerHub     trackPowerHub;
 extern ModusController   modusController;
@@ -65,6 +67,7 @@ enum class NextResponse : uint8_t { NONE=0, DIAG=1, PENDING=2 };
 static volatile NextResponse s_nextResponse = NextResponse::NONE;
 static volatile bool s_pendingPrimed = false; // set after pending-mask read; allows clearing pending on subsequent reads
 static volatile uint8_t s_diagSeq = 0;
+static volatile bool s_clearSensorEdges = false; // defer edge clear to loop
 
 // --------------------------------------------------
 // Snapshots (werden im loop() gebaut, im ISR nur rausgeschrieben)
@@ -246,6 +249,7 @@ void i2cOnRequest()
         s_nextResponse = NextResponse::NONE;
 
         Wire.write((const uint8_t*)&s_diagSnap, sizeof(s_diagSnap));
+        s_clearSensorEdges = true; // clear rise/fall AFTER the snapshot was served
         if (s_pendingPrimed)
         {
             mega1ClearPending(M1_PEND_DIAG);
@@ -335,6 +339,15 @@ void i2cSlaveProcessQueue()
 
 void i2cSlaveUpdateSnapshots()
 {
+    // Defer-clear sensor edge masks (must NOT run inside Wire ISR)
+    if (s_clearSensorEdges)
+    {
+        noInterrupts();
+        s_clearSensorEdges = false;
+        interrupts();
+        sensorHub.clearEdgeMasks();
+    }
+
     // -------- DIAG snapshot --------
     Mega1DiagV1 d{};
     d.version = 1;
@@ -362,6 +375,11 @@ void i2cSlaveUpdateSnapshots()
     d.selftestFailMask = failMask;
     if (failMask) d.selftestFlags |= 0x04u;
     d.selftestCurrentIdx = weichenHub.selftestCurrentIdx();
+    
+    // Digital sensors (S0..S23) – masks (sticky edges)
+    d.sensorActiveMask = sensorHub.activeMask();
+    d.sensorRiseMask   = sensorHub.riseMask();
+    d.sensorFallMask   = sensorHub.fallMask();
 
     // -------- STATUS snapshot --------
     SystemStatus st{};
