@@ -112,6 +112,20 @@ void i2cSlaveBegin(uint8_t address)
     Wire.begin(address);
     Wire.onReceive(i2cOnReceive);
     Wire.onRequest(i2cOnRequest);
+    
+    // Init snapshots so the master never sees all-zero headers right after boot.
+    // The loop will later overwrite them with real data via i2cSlaveUpdateSnapshots().
+    noInterrupts();
+    memset(&s_statusSnap, 0, sizeof(s_statusSnap));
+    s_statusSnap.version = SYSTEM_STATUS_VERSION;
+    s_statusSnap.nodeId  = NODE_MEGA1;
+    s_statusSnap.size    = sizeof(SystemStatus);
+
+    memset(&s_diagSnap, 0, sizeof(s_diagSnap));
+    s_diagSnap.version = 1;
+    s_diagSnap.flags   = 0x00; // valid will be set by i2cSlaveUpdateSnapshots()
+    s_diagSnap.seq     = 0;
+    interrupts();
 }
 
 // --------------------------------------------------
