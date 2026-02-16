@@ -2,6 +2,7 @@
 #include "I2CProtocol.h"
 #include "system/system_status_payload.h"
 #include "system/mega1_diag_payload.h"
+#include "system/mega1_diag_relays_payload.h"
 
 #include "payload.h"
 #include "SensorHub.h"
@@ -9,6 +10,7 @@
 #include "Modus.h"
 #include "BahnhofController.h"
 #include "TrackPowerHub.h"
+#include "pins_mega1.h"
 
 #include <Arduino.h>
 #include <Wire.h>
@@ -61,19 +63,22 @@ extern void mega1ClearPending(uint16_t bits);
 extern uint16_t mega1GetPending();
 
 // Für read-only Snapshot-Kommandos (ohne 1-Byte ACK davor)
-enum class NextResponse : uint8_t { NONE=0, DIAG=1, PENDING=2 };
-// erweitert: zusätzlich pendingMask als read-only
-// (wie Mega2)
+enum class NextResponse : uint8_t { NONE=0, DIAG=1, PENDING=2, RELAYS=3 };
+
 static volatile NextResponse s_nextResponse = NextResponse::NONE;
 static volatile bool s_pendingPrimed = false; // set after pending-mask read; allows clearing pending on subsequent reads
-static volatile uint8_t s_diagSeq = 0;
+
+static volatile uint8_t s_diagSeq    = 0;
+static volatile uint8_t s_relaysSeq  = 0;
+
 static volatile bool s_clearSensorEdges = false; // defer edge clear to loop
 
 // --------------------------------------------------
 // Snapshots (werden im loop() gebaut, im ISR nur rausgeschrieben)
 // --------------------------------------------------
-static SystemStatus s_statusSnap;
-static Mega1DiagV1  s_diagSnap;
+static SystemStatus       s_statusSnap;
+static Mega1DiagV1        s_diagSnap;
+static Mega1DiagRelaysV1  s_relaysSnap;
 
 // --------------------------------------------------
 // Command Queue (ISR -> loop)
@@ -125,6 +130,12 @@ void i2cSlaveBegin(uint8_t address)
     s_diagSnap.version = 1;
     s_diagSnap.flags   = 0x00; // valid will be set by i2cSlaveUpdateSnapshots()
     s_diagSnap.seq     = 0;
+
+    memset(&s_relaysSnap, 0, sizeof(s_relaysSnap));
+    s_relaysSnap.version = 1;
+    s_relaysSnap.flags   = 0x00; // valid will be set by i2cSlaveUpdateSnapshots()
+    s_relaysSnap.seq     = 0;
+
     interrupts();
 }
 
@@ -167,6 +178,11 @@ void i2cOnReceive(int len)
         case CMD_GET_DIAG:
             // Read-only Snapshot: nächste Read-Phase liefert Diagnosepaket (ohne 1-Byte ACK)
             s_nextResponse = NextResponse::DIAG;
+            return;
+
+        case CMD_GET_RELAYS:
+            // Read-only Snapshot: nächste Read-Phase liefert Relais/Outputs (ohne 1-Byte ACK)
+            s_nextResponse = NextResponse::RELAYS;
             return;
 
         case CMD_SET_MODE:
@@ -266,6 +282,21 @@ void i2cOnRequest()
         s_clearSensorEdges = true; // clear rise/fall AFTER the snapshot was served
         if (s_pendingPrimed)
         {
+            mega1ClearPending(M1_PEND_DIAG);
+            if (mega1GetPending() == 0) s_pendingPrimed = false;
+        }
+        return;
+    }
+
+    // Read-only Snapshot: Relais/Outputs (<=32B)
+    if (s_nextResponse == NextResponse::RELAYS)
+    {
+        s_nextResponse = NextResponse::NONE;
+
+        Wire.write((const uint8_t*)&s_relaysSnap, sizeof(s_relaysSnap));
+        if (s_pendingPrimed)
+        {
+            // Reuse M1_PEND_DIAG erstmal auch für RELAYS (keine ESP-Änderung nötig)
             mega1ClearPending(M1_PEND_DIAG);
             if (mega1GetPending() == 0) s_pendingPrimed = false;
         }
@@ -413,9 +444,70 @@ void i2cSlaveUpdateSnapshots()
     st.safetyErrorType  = 0;
     st.safetyErrorIndex = 0;
 
+    // -------- RELAYS snapshot (change-detect; seq increments only on change) --------
+    Mega1DiagRelaysV1 r{};
+    r.version = 1;
+    r.flags   = 0x01;
+    r.seq     = s_relaysSeq; // default: unchanged
+    r.uptime16 = (uint16_t)(millis() / 100);
+
+    // Build masks from actual pin levels
+    uint16_t gMask = 0;
+    uint16_t aMask = 0;
+    uint16_t redMask = 0;
+
+    for (uint8_t i = 0; i < NUM_WEICHEN; ++i)
+    {
+        const WPins& wp = WEICHEN_PINS[i];
+
+        if (digitalRead(wp.pinG) == HIGH) gMask |= (uint16_t)(1u << i);
+        if (digitalRead(wp.pinA) == HIGH) aMask |= (uint16_t)(1u << i);
+
+        if (wp.hasRed && wp.pinRed != 255)
+        {
+            if (digitalRead(wp.pinRed) == HIGH) redMask |= (uint16_t)(1u << i);
+        }
+    }
+
+    uint8_t bhfMask = 0;
+    for (uint8_t i = 0; i < BHF_COUNT; ++i)
+        if (digitalRead(BHF_TRACK_POWER_PIN[i]) == HIGH)
+            bhfMask |= (1u << i);
+
+    r.weicheGMask   = gMask;
+    r.weicheAMask   = aMask;
+    r.weicheRedMask = redMask;
+    r.bhfPowerMask  = bhfMask;
+
+    // Compare with last served snapshot (loop-context safe copy)
+    Mega1DiagRelaysV1 last{};
     noInterrupts();
-    memcpy(&s_diagSnap,   &d,  sizeof(d));
-    memcpy(&s_statusSnap, &st, sizeof(st));
+    memcpy(&last, &s_relaysSnap, sizeof(last));
+    interrupts();
+
+    const bool relaysChanged =
+        (last.weicheGMask   != r.weicheGMask)   ||
+        (last.weicheAMask   != r.weicheAMask)   ||
+        (last.weicheRedMask != r.weicheRedMask) ||
+        (last.bhfPowerMask  != r.bhfPowerMask);
+
+    if (relaysChanged)
+    {
+        r.seq = ++s_relaysSeq;
+        // Reuse DIAG pending for now (keeps ESP-side unchanged)
+        mega1SetPending(M1_PEND_DIAG);
+    }
+    else
+    {
+        // keep old seq to avoid "spritzig spam" on the ESP
+        r.seq = last.seq;
+    }
+
+    // -------- Copy snapshots (ISR-safe) --------
+    noInterrupts();
+    memcpy(&s_diagSnap,    &d,  sizeof(d));
+    memcpy(&s_relaysSnap,  &r,  sizeof(r));
+    memcpy(&s_statusSnap,  &st, sizeof(st));
     interrupts();
 }
 
