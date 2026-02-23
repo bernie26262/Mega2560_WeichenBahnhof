@@ -12,5 +12,5 @@ void TrackPowerHub::begin()
 void TrackPowerHub::setPower(uint8_t bhf, bool on)
 {
     if (bhf >= BHF_COUNT) return;
-    digitalWrite(BHF_TRACK_POWER_PIN[bhf], on ? HIGH : LOW);
+    digitalWrite(BHF_TRACK_POWER_PIN[bhf], on ? LOW : HIGH);
 }
