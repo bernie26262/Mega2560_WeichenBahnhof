@@ -117,18 +117,38 @@ private:
     // --------------------------------------------------
     // Selbsttest-State
     // --------------------------------------------------
-    enum class StState : uint8_t { Idle = 0, Pulse, Settle, Done };
+    enum class StState : uint8_t { Idle = 0, Done };
     bool     m_stActive = false;
     bool     m_stDone   = false;
     StState  m_stState  = StState::Idle;
     uint16_t m_stMask   = 0;
     uint8_t  m_stIndex  = 0;
     uint8_t  m_stPhase  = 0;   // 0 = Toggle#1, 1 = Toggle#2
+    // Legacy serial-selftest vars (kept for compatibility; not used in pipelined mode)
     bool     m_stTargetGerade = false;
     uint32_t m_stUntilMs = 0;
     uint16_t m_stOk1Mask  = 0;
     uint16_t m_stOk2Mask  = 0;
     uint16_t m_stFailMask = 0;
+
+    // --------------------------------------------------
+    // Selbsttest (pipelined)
+    // --------------------------------------------------
+    struct StEvalItem {
+        uint8_t  index;
+        bool     targetGerade;
+        uint32_t evalAtMs;
+    };
+
+    // pro gepulster Weiche ein Eval-Item (Ringpuffer; max NUM_WEICHEN Items)
+    StEvalItem m_stEvalQ[NUM_WEICHEN];
+    uint8_t    m_stEvalHead  = 0;
+    uint8_t    m_stEvalTail  = 0;
+    uint8_t    m_stEvalCount = 0;
+
+    // letzter gepulster Befehl (für Logging/Eval)
+    uint8_t    m_stPulseIndex = 0;
+    bool       m_stPulseTargetGerade = false;
 
 
     // --------------------------------------------------
@@ -144,7 +164,14 @@ private:
     // Selftest intern
     void selftestUpdate(uint32_t nowMs);
     bool selftestPickNextIndex();
-    void selftestStartPulse(uint32_t nowMs);
-    void selftestStartSettle(uint32_t nowMs);
-    void selftestEvalAndAdvance(uint32_t nowMs);
+
+    // pipelined selftest helpers
+    void selftestEvalQReset();
+    bool selftestEvalQPush(uint8_t index, bool targetGerade, uint32_t evalAtMs);
+    bool selftestEvalQPeek(StEvalItem& out) const;
+    bool selftestEvalQPop();
+
+    void selftestStartNextPulse(uint32_t nowMs);
+    void selftestPulseFinished(uint32_t nowMs);
+    void selftestEvalDue(uint32_t nowMs);
 };

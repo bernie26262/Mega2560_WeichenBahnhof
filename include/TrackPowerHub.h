@@ -2,7 +2,7 @@
 #include <Arduino.h>
 #include "pins_mega1.h"
 
-// LOW-Level-Relais: LOW = Strom AUS, HIGH = Strom AN
+// Active-low Relais: LOW = Strom AN, HIGH = Strom AUS
 class TrackPowerHub
 {
 public:

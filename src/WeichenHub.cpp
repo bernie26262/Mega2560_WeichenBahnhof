@@ -64,6 +64,12 @@ void WeichenHub::begin()
     m_stIndex  = 0;
     m_stPhase  = 0;
     m_stUntilMs = 0;
+    
+    // Pipelined selftest: eval-queue & pulse state reset
+    selftestEvalQReset();
+    m_stPulseIndex = 0;
+    m_stPulseTargetGerade = false;
+
     m_stOk1Mask = m_stOk2Mask = m_stFailMask = 0;
 }
 
@@ -220,6 +226,11 @@ bool WeichenHub::startSelftest(uint16_t mask)
     m_stDone = false;
     m_stActive = true;
 
+    // pipelined selftest reset
+    selftestEvalQReset();
+    m_stPulseIndex = 0;
+    m_stPulseTargetGerade = false;
+
     // Skip to first valid index
     (void)selftestPickNextIndex();
 
@@ -231,127 +242,191 @@ bool WeichenHub::selftestPickNextIndex()
 {
     while (m_stIndex < NUM_WEICHEN)
     {
-        if ((m_stMask & (1u << m_stIndex)) != 0)
-            return true;
-        m_stIndex++;
+        const uint16_t bit = (1u << m_stIndex);
+        if ((m_stMask & bit) == 0)
+        {
+            m_stIndex++;
+            continue;
+        }
+
+        // In Phase 1 nur Weichen testen, die Phase 0 bestanden haben
+        if (m_stPhase == 1 && ((m_stFailMask & bit) != 0))
+        {
+            m_stIndex++;
+            continue;
+        }
+        return true;
     }
     return false;
 }
 
-void WeichenHub::selftestStartPulse(uint32_t nowMs)
+// --------------------------------------------------
+// Selbsttest (pipelined) – Eval-Queue
+// --------------------------------------------------
+void WeichenHub::selftestEvalQReset()
+{
+    m_stEvalHead = m_stEvalTail = m_stEvalCount = 0;
+}
+
+bool WeichenHub::selftestEvalQPush(uint8_t index, bool targetGerade, uint32_t evalAtMs)
+{
+    if (m_stEvalCount >= NUM_WEICHEN) return false;
+    m_stEvalQ[m_stEvalTail] = StEvalItem{ index, targetGerade, evalAtMs };
+    m_stEvalTail = (m_stEvalTail + 1) % NUM_WEICHEN;
+    m_stEvalCount++;
+    return true;
+}
+
+bool WeichenHub::selftestEvalQPeek(StEvalItem& out) const
+{
+    if (m_stEvalCount == 0) return false;
+    out = m_stEvalQ[m_stEvalHead];
+    return true;
+}
+
+bool WeichenHub::selftestEvalQPop()
+{
+    if (m_stEvalCount == 0) return false;
+    m_stEvalHead = (m_stEvalHead + 1) % NUM_WEICHEN;
+    m_stEvalCount--;
+    return true;
+}
+
+// --------------------------------------------------
+// Selbsttest (pipelined) – Pulse/Eval Ablauf
+// --------------------------------------------------
+void WeichenHub::selftestStartNextPulse(uint32_t nowMs)
 {
     // Zielrichtung = immer Gegenrichtung zur aktuellen Ist-RM
     const bool istGeradeNow = readIstGerade(m_stIndex);
-    m_stTargetGerade = !istGeradeNow;
+    m_stPulseTargetGerade = !istGeradeNow;
+    m_stPulseIndex = m_stIndex;
 
     // Puls starten (500ms)
-    startPulseCustom(m_stIndex, m_stTargetGerade, WEICHE_SELFTEST_PULSE_MS);
-    m_stState = StState::Pulse;
-    m_stUntilMs = nowMs + WEICHE_SELFTEST_PULSE_MS;
+    startPulseCustom(m_stPulseIndex, m_stPulseTargetGerade, WEICHE_SELFTEST_PULSE_MS);
+    // startPulseCustom setzt m_pulseActive/m_pulseUntilMs/m_activeCmd
 
     Serial.print(F("[M1] ST pulse ON  W"));
-    Serial.print(m_stIndex);
+    Serial.print(m_stPulseIndex);
     Serial.print(F(" -> "));
-    Serial.print(m_stTargetGerade ? F("GERADE") : F("ABBIEGEN"));
+    Serial.print(m_stPulseTargetGerade ? F("GERADE") : F("ABBIEGEN"));
     Serial.print(F(" (ist="));
     Serial.print(istGeradeNow ? F("GERADE") : F("ABBIEGEN"));
     Serial.print(F(" phase="));
     Serial.print(m_stPhase);
     Serial.println(F(")"));
-}
 
-void WeichenHub::selftestStartSettle(uint32_t nowMs)
-{
-    // Puls beenden (Spulen AUS), dann settle abwarten
-    // Reduktions-Relais bleibt persistent nach Weichenlage
-    stopPulseOnly(m_stIndex);
-    m_pulseActive = false;
-
-    m_stState = StState::Settle;
-    m_stUntilMs = nowMs + WEICHE_SELFTEST_SETTLE_MS;
-
-    Serial.print(F("[M1] ST pulse OFF W"));
-    Serial.print(m_stIndex);
-    Serial.println(F(" -> settle"));
-}
-
-void WeichenHub::selftestEvalAndAdvance(uint32_t nowMs)
-{
-    const bool istGerade = readIstGerade(m_stIndex);
-
-    // Reduktions-Relais auf IST synchronisieren (falls vorhanden)
-    const WPins& p = WEICHEN_PINS[m_stIndex];
-    if (p.hasRed && p.pinRed != 255)
-    {
-        digitalWrite(p.pinRed, istGerade ? HIGH : LOW);
-        m_redActive[m_stIndex] = (!istGerade);
-    }
-
-    const bool ok = (istGerade == m_stTargetGerade);
-
-    const uint16_t bit = (1u << m_stIndex);
-    if (m_stPhase == 0)
-    {
-        if (ok) m_stOk1Mask |= bit;
-        else
-        {
-            // Wenn Toggle#1 fail, Weiche ist defekt -> Toggle#2 skippen, aber Selftest läuft weiter
-            m_stFailMask |= bit;
-        }
-    }
-    else
-    {
-        if (ok) m_stOk2Mask |= bit;
-        else    m_stFailMask |= bit;
-    }
-
-    Serial.print(F("[M1] ST eval W"));
-    Serial.print(m_stIndex);
-    Serial.print(F(" phase="));
-    Serial.print(m_stPhase);
-    Serial.print(F(" target="));
-    Serial.print(m_stTargetGerade ? F("GERADE") : F("ABBIEGEN"));
-    Serial.print(F(" ist="));
-    Serial.print(istGerade ? F("GERADE") : F("ABBIEGEN"));
-    Serial.print(F(" ok="));
-    Serial.println(ok ? F("1") : F("0"));
-
-    // Phase advance:
-    // - If phase 0 failed => skip phase 1 for this turnout (directly move to next turnout)
-    if (m_stPhase == 0 && !ok)
-    {
-        Serial.print(F("[M1] ST skip W"));
-        Serial.print(m_stIndex);
-        Serial.println(F(" phase=1 (phase0 failed)"));
-        m_stPhase = 0;
-        m_stIndex++;
-        (void)selftestPickNextIndex();
-        m_stState = StState::Idle;
-        return;
-    }
-
-    // Otherwise: toggle twice per turnout
-    if (m_stPhase == 0)
-    {
-        m_stPhase = 1;
-        m_stState = StState::Idle;
-        return;
-    }
-
-    // phase 1 done -> next turnout
-    m_stPhase = 0;
+    // Nächste Weiche für den nächsten Puls vorbereiten (Settle läuft parallel)
     m_stIndex++;
     (void)selftestPickNextIndex();
-    m_stState = StState::Idle;
+}
+
+void WeichenHub::selftestPulseFinished(uint32_t nowMs)
+{
+    // Puls beenden (Spulen AUS)
+    stopPulseOnly(m_stPulseIndex);
+    m_pulseActive = false;
+
+    Serial.print(F("[M1] ST pulse OFF W"));
+    Serial.print(m_stPulseIndex);
+    Serial.println(F(" -> queued for settle/eval"));
+
+    // Eval nach Settle-Zeit in Queue einhängen
+    (void)selftestEvalQPush(m_stPulseIndex, m_stPulseTargetGerade, nowMs + WEICHE_SELFTEST_SETTLE_MS);
+}
+
+void WeichenHub::selftestEvalDue(uint32_t nowMs)
+{
+    // Es können mehrere Evals in einem Loop fällig sein
+    StEvalItem it{};
+    while (selftestEvalQPeek(it))
+    {
+        if ((int32_t)(nowMs - it.evalAtMs) < 0)
+            break;
+
+        const bool istGerade = readIstGerade(it.index);
+
+        // Reduktions-Relais auf IST synchronisieren (falls vorhanden)
+        const WPins& p = WEICHEN_PINS[it.index];
+        if (p.hasRed && p.pinRed != 255)
+        {
+            digitalWrite(p.pinRed, istGerade ? HIGH : LOW);
+            m_redActive[it.index] = (!istGerade);
+        }
+
+        const bool ok = (istGerade == it.targetGerade);
+        const uint16_t bit = (1u << it.index);
+
+        if (m_stPhase == 0)
+        {
+            if (ok) m_stOk1Mask |= bit;
+            else    m_stFailMask |= bit;
+        }
+        else
+        {
+            if (ok) m_stOk2Mask |= bit;
+            else    m_stFailMask |= bit;
+        }
+
+        Serial.print(F("[M1] ST eval W"));
+        Serial.print(it.index);
+        Serial.print(F(" phase="));
+        Serial.print(m_stPhase);
+        Serial.print(F(" target="));
+        Serial.print(it.targetGerade ? F("GERADE") : F("ABBIEGEN"));
+        Serial.print(F(" ist="));
+        Serial.print(istGerade ? F("GERADE") : F("ABBIEGEN"));
+        Serial.print(F(" ok="));
+        Serial.println(ok ? F("1") : F("0"));
+
+        (void)selftestEvalQPop();
+    }
 }
 
 void WeichenHub::selftestUpdate(uint32_t nowMs)
 {
     if (!m_stActive) return;
 
-    // fertig, wenn keine Weiche mehr übrig
-    if (m_stIndex >= NUM_WEICHEN)
+    // 1) Puls beenden, wenn fällig
+    if (m_pulseActive)
     {
+        if ((int32_t)(nowMs - m_pulseUntilMs) >= 0)
+            selftestPulseFinished(nowMs);
+    }
+
+    // 2) Fällige Evals abarbeiten (läuft parallel zu Puls anderer Weichen)
+    selftestEvalDue(nowMs);
+
+    // 3) Wenn kein Puls aktiv: nächsten Puls starten, oder Phase wechseln, oder fertig
+    if (!m_pulseActive)
+    {
+        // Gibt es noch Weichen zu pulsen in dieser Phase?
+        if (m_stIndex < NUM_WEICHEN)
+        {
+            (void)selftestPickNextIndex();
+            if (m_stIndex < NUM_WEICHEN)
+            {
+                selftestStartNextPulse(nowMs);
+                return;
+            }
+        }
+
+        // Keine weiteren Pulse in dieser Phase. Erst fertig, wenn alle Evals abgearbeitet.
+        if (m_stEvalCount > 0)
+            return;
+
+        // Phase 0 -> Phase 1
+        if (m_stPhase == 0)
+        {
+            m_stPhase = 1;
+            m_stIndex = 0;
+            selftestEvalQReset();
+            (void)selftestPickNextIndex();
+            Serial.println(F("[M1] ST phase 0 done -> phase 1"));
+            return;
+        }
+
+        // Phase 1 fertig -> Gesamttest fertig
         m_stActive = false;
         m_stDone = true;
         m_stState = StState::Done;
@@ -377,27 +452,6 @@ void WeichenHub::selftestUpdate(uint32_t nowMs)
 
         Serial.println(F("[M1] Weichen selftest done"));
         return;
-    }
-
-    switch (m_stState)
-    {
-        case StState::Idle:
-            selftestStartPulse(nowMs);
-            break;
-
-        case StState::Pulse:
-            if ((int32_t)(nowMs - m_stUntilMs) >= 0)
-                selftestStartSettle(nowMs);
-            break;
-
-        case StState::Settle:
-            if ((int32_t)(nowMs - m_stUntilMs) >= 0)
-                selftestEvalAndAdvance(nowMs);
-            break;
-
-        case StState::Done:
-        default:
-            break;
     }
 }
 

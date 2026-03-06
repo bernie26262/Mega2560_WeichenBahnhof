@@ -353,6 +353,10 @@ void i2cSlaveProcessQueue()
                 break;
 
             case CMD_SET_BHF_POWER:
+#ifdef DEBUG_SERIAL
+                Serial.print(F("[M1I2C] CMD_SET_BHF_POWER bhf=")); Serial.print(it.a);
+                Serial.print(F(" on=")); Serial.println(it.b ? F("1") : F("0"));
+#endif
                 trackPowerHub.setPower(it.a, it.b != 0);
                 g_payloadDirty = true;
                 mega1SetPending(M1_PEND_STATUS | M1_PEND_DIAG);
@@ -408,7 +412,8 @@ void i2cSlaveUpdateSnapshots()
 
     uint8_t pm = 0;
     for (uint8_t i = 0; i < BHF_COUNT; ++i)
-        if (digitalRead(BHF_TRACK_POWER_PIN[i]) == HIGH)
+        // active-low hardware: LOW = Bahnhof AN, HIGH = Bahnhof AUS
+        if (digitalRead(BHF_TRACK_POWER_PIN[i]) == LOW)
             pm |= (1u << i);
     d.powerMask = pm;
 
@@ -471,7 +476,8 @@ void i2cSlaveUpdateSnapshots()
 
     uint8_t bhfMask = 0;
     for (uint8_t i = 0; i < BHF_COUNT; ++i)
-        if (digitalRead(BHF_TRACK_POWER_PIN[i]) == HIGH)
+        // active-low hardware: LOW = Bahnhof AN, HIGH = Bahnhof AUS
+        if (digitalRead(BHF_TRACK_POWER_PIN[i]) == LOW)
             bhfMask |= (1u << i);
 
     r.weicheGMask   = gMask;
