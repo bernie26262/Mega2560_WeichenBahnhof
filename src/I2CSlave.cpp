@@ -347,10 +347,21 @@ void i2cSlaveProcessQueue()
             }
 
             case CMD_SET_WEICHE:
-                (void)weichenHub.enqueueWeiche(it.a, it.b != 0);
+            {
+                const bool gerade = (it.b != 0);
+
+#ifdef DEBUG_SERIAL
+                Serial.print(F("[M1I2C] RX CMD_SET_WEICHE idx="));
+                Serial.print(it.a);
+                Serial.print(F(" gerade="));
+                Serial.println(gerade ? F("1(G)") : F("0(A)"));
+#endif
+
+                (void)weichenHub.enqueueWeiche(it.a, gerade);
                 // UI soll sofort reagieren
                 mega1SetPending(M1_PEND_STATUS | M1_PEND_DIAG);
                 break;
+            }
 
             case CMD_SET_BHF_POWER:
 #ifdef DEBUG_SERIAL

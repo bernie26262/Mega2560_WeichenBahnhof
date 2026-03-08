@@ -80,6 +80,13 @@ bool WeichenHub::enqueueWeiche(uint8_t index, bool gerade)
     if (index >= NUM_WEICHEN) return false;
     if (m_qCount >= WEICHE_QUEUE_SIZE) return false;
 
+#ifdef DEBUG_SERIAL
+    Serial.print(F("[M1WH] enqueue W"));
+    Serial.print(index);
+    Serial.print(F(" -> "));
+    Serial.println(gerade ? F("GERADE") : F("ABBIEGEN"));
+#endif
+
     m_q[m_qTail] = Cmd{ index, gerade };
     m_qTail = (m_qTail + 1) % WEICHE_QUEUE_SIZE;
     m_qCount++;
@@ -136,6 +143,14 @@ bool WeichenHub::readIstGerade(uint8_t index) const
 
 void WeichenHub::startPulseCustom(uint8_t index, bool gerade, uint32_t pulseMs)
 {
+ #ifdef DEBUG_SERIAL
+    Serial.print(F("[M1WH] PULSE START W"));
+    Serial.print(index);
+    Serial.print(F(" coil="));
+    Serial.print(gerade ? F("GERADE") : F("ABBIEGEN"));
+    Serial.print(F(" t="));
+    Serial.println(millis());
+ #endif
     const WPins& p = WEICHEN_PINS[index];
 
     // Reduktions-Relais passend zum Zielzustand setzen (Abbiegen => LOW)
@@ -177,6 +192,12 @@ void WeichenHub::stopPulseOnly(uint8_t index)
 
 void WeichenHub::stopPulseAndCheck(const Cmd& cmd)
 {
+ #ifdef DEBUG_SERIAL
+    Serial.print(F("[M1WH] PULSE STOP W"));
+    Serial.print(cmd.index);
+    Serial.print(F(" target="));
+    Serial.println(cmd.gerade ? F("GERADE") : F("ABBIEGEN"));
+ #endif
     const WPins& p = WEICHEN_PINS[cmd.index];
 
     // Spulen AUS
