@@ -78,6 +78,40 @@ bool WeichenHub::enqueueWeiche(uint8_t index, bool gerade)
     // Während Selftest keine normalen Commands annehmen (deterministisch bleiben)
     if (m_stActive) return false;
     if (index >= NUM_WEICHEN) return false;
+    
+    // --------------------------------------------------
+    // Schutz gegen doppelte gleiche Zielaufträge
+    // --------------------------------------------------
+    // Fall A: identischer Auftrag ist gerade aktiv gepulst
+    if (m_pulseActive &&
+        m_activeCmd.index == index &&
+        m_activeCmd.gerade == gerade)
+    {
+#ifdef DEBUG_SERIAL
+        Serial.print(F("[M1WH] skip duplicate (active) W"));
+        Serial.print(index);
+        Serial.print(F(" -> "));
+        Serial.println(gerade ? F("GERADE") : F("ABBIEGEN"));
+#endif
+        return true;
+    }
+
+    // Fall B: identischer Auftrag steht bereits in der Queue
+    for (uint8_t i = 0; i < m_qCount; ++i)
+    {
+        const uint8_t pos = (m_qHead + i) % WEICHE_QUEUE_SIZE;
+        if (m_q[pos].index == index && m_q[pos].gerade == gerade)
+        {
+#ifdef DEBUG_SERIAL
+            Serial.print(F("[M1WH] skip duplicate (queued) W"));
+            Serial.print(index);
+            Serial.print(F(" -> "));
+            Serial.println(gerade ? F("GERADE") : F("ABBIEGEN"));
+#endif
+            return true;
+        }
+    }
+
     if (m_qCount >= WEICHE_QUEUE_SIZE) return false;
 
 #ifdef DEBUG_SERIAL
@@ -114,11 +148,39 @@ bool WeichenHub::enqueueGrundstellung()
     bool ok = true;
     for (uint8_t w = 0; w < NUM_WEICHEN; ++w)
     {
-        const bool gerade = (WEICHEN_GRUNDSTELLUNG[w] == GERADE);
+        const bool gerade    = (WEICHEN_GRUNDSTELLUNG[w] == GERADE);
+        const bool istGerade = readIstGerade(w);
+
+#ifdef DEBUG_SERIAL
+        Serial.print(F("[M1WH] Grundstellung W"));
+        Serial.print(w);
+        Serial.print(F(" ist="));
+        Serial.print(istGerade ? F("GERADE") : F("ABBIEGEN"));
+        Serial.print(F(" soll="));
+        Serial.print(gerade ? F("GERADE") : F("ABBIEGEN"));
+#endif
+
+        // Bereits korrekt gestellt -> kein unnötiger Puls.
+        if (istGerade == gerade)
+        {
+#ifdef DEBUG_SERIAL
+            Serial.println(F(" -> skip"));
+#endif
+            m_state[w] = gerade;
+            m_status[w].lastSollGerade = gerade;
+            m_status[w].lastIstGerade  = istGerade;
+            continue;
+        }
+
+#ifdef DEBUG_SERIAL
+        Serial.println(F(" -> enqueue"));
+#endif
+
         // wenn Queue voll -> ok=false, aber wir versuchen weiter (best effort)
         if (!enqueueWeiche(w, gerade))
             ok = false;
     }
+
     return ok;
 }
 

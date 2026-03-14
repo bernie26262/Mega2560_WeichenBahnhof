@@ -29,11 +29,10 @@ void ModusController::setMode(BetriebsModus newMode)
     if (m_mode == BetriebsModus::MANUELL &&
         newMode == BetriebsModus::AUTOMATIK)
     {
-        for (uint8_t w = 0; w < NUM_WEICHEN; ++w)
-        {
-            // alle Weichen in Grundstellung fahren
+        // Grundstellung genau EINMAL anstoßen.
+        // Die Filterung "nur wenn Ist != Grundstellung" erfolgt in enqueueGrundstellung().
         (void)weichenHub.enqueueGrundstellung();
-        }
+        
     }
 
     // --------------------------------------------------
