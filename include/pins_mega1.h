@@ -10,7 +10,10 @@
 constexpr uint8_t PIN_DATA_READY = 51;
 
 // Anzahl aller logisch verwendeten Sensor-Indizes.
-// Wir nutzen Indizes 0–10 (Schaltgleise) sowie 18,19,22,23 (Timerstart).
+// Derzeit werden nur S0..S10 physisch benutzt.
+// Wichtig: Einzelne Sensoren können mehrere logische Funktionen haben
+// (z.B. Fahrstraße + Bahnhof-Timerstart). Die fachliche Zuordnung erfolgt
+// zentral über die Bahnhofs-Konfiguration weiter unten.
 constexpr uint8_t NUM_SENSORS = 24;
 
 // SENSOR_PINS[index] -> Arduino-Pin oder -1 (ungenutzt)
@@ -29,13 +32,7 @@ enum SensorIndex : uint8_t
     SENSOR_S7  = 7,  // Pin 31 - Fahrstraße
     SENSOR_S8  = 8,  // Pin 27 - Bhf2/3 Einfahrt
     SENSOR_S9  = 9,  // Pin 35 - Fahrstraße
-    SENSOR_S10 = 10, // Pin 34 - Fahrstraße
-
-    // Timer-Start-Sensoren:
-    SENSOR_S18 = 18, // Pin D29 - Bhf1 Timerstart
-    SENSOR_S19 = 19, // Pin D26 - Bhf0 Timerstart
-    SENSOR_S22 = 22, // Pin D30 - Bhf2 Timerstart
-    SENSOR_S23 = 23  // Pin D36 - Bhf3 Timerstart
+    SENSOR_S10 = 10  // Pin 34 - S10 Fahrstraße
 };
 
 // ---------------------------------------------------------------------------
@@ -44,10 +41,14 @@ enum SensorIndex : uint8_t
 
 constexpr uint8_t BHF_COUNT = 4;
 
-// Einfahrts-Sensor pro Bahnhof (Index, nicht Pin)
-extern const uint8_t BHF_EINFAHRT_SENSOR_INDEX[BHF_COUNT];
-// Timerstart-Sensor pro Bahnhof (Index, nicht Pin)
-extern const uint8_t BHF_TIMER_SENSOR_INDEX[BHF_COUNT];
+struct BahnhofSensorConfig
+{
+    uint8_t einfahrtSensorIndex;
+    uint8_t timerStartSensorIndex;
+};
+
+// Zentrale fachliche Zuordnung je Bahnhof.
+extern const BahnhofSensorConfig BHF_SENSOR_CONFIG[BHF_COUNT];
 
 // ---------------------------------------------------------------------------
 //  Weichen-Pins

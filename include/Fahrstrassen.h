@@ -23,9 +23,10 @@ struct WeichenSchaltSchritt
 // --------------------------------------------------
 struct SteuerungWeichenDefinition
 {
-    uint8_t  sensorIndex;
-    uint8_t  resetSensors[4];
-    uint8_t  numReset;
+    const char* name;           // Sprechender Name der Fahrstraße
+    uint8_t     triggerSensor;  // Auslösender Schaltgleis-Sensor
+    uint8_t     resetSensors[4];// Sensoren, die Zähler/aktiv-Status zurücksetzen
+    uint8_t     numReset;
 
     const WeichenSchaltSchritt* steps;
     uint8_t  numSteps;

@@ -20,7 +20,7 @@ const int8_t SENSOR_PINS[NUM_SENSORS] =
     35, // 9  - S9  Fahrstraße
     34, // 10 - S10 Fahrstraße
 
-    // 11–17: aktuell unbenutzt
+    // 11–23: aktuell unbenutzt
     -1, // 11
     -1, // 12
     -1, // 13
@@ -28,32 +28,20 @@ const int8_t SENSOR_PINS[NUM_SENSORS] =
     -1, // 15
     -1, // 16
     -1, // 17
-
-    // Timerstart-Sensoren:
-    29,  // 18 - S18 (Bhf1 Timerstart)  [NEU]
-    26,  // 19 - S19 (Bhf0 Timerstart)  [NEU]
-    -1,  // 20 - frei
-    -1,  // 21 - frei
-    30,  // 22 - S22 (Bhf2 Timerstart)  [NEU]
-    36   // 23 - S23 (Bhf3 Timerstart)  [NEU]
+    -1, // 18
+    -1, // 19
+    -1, // 20
+    -1, // 21
+    -1, // 22
+    -1  // 23
 };
 
-// Bahnhöfe 0–3 zu Einfahrts-Sensor:
-const uint8_t BHF_EINFAHRT_SENSOR_INDEX[BHF_COUNT] =
+const BahnhofSensorConfig BHF_SENSOR_CONFIG[BHF_COUNT] =
 {
-    SENSOR_S2, // Bhf 0
-    SENSOR_S2, // Bhf 1
-    SENSOR_S8, // Bhf 2
-    SENSOR_S8  // Bhf 3
-};
-
-// Bahnhöfe 0–3 zu Timerstart-Sensor:
-const uint8_t BHF_TIMER_SENSOR_INDEX[BHF_COUNT] =
-{
-    SENSOR_S19, // Bhf 0 - S19 / A8 / Index 19
-    SENSOR_S18, // Bhf 1 - S18 / A9 / Index 18
-    SENSOR_S22, // Bhf 2 - S22 / A10 / Index 22
-    SENSOR_S23  // Bhf 3 - S23 / A11 / Index 23
+    { SENSOR_S2, SENSOR_S5  }, // Bhf 0: Einfahrt S2, Timerstart S5
+    { SENSOR_S2, SENSOR_S3  }, // Bhf 1: Einfahrt S2, Timerstart S3
+    { SENSOR_S8, SENSOR_S9  }, // Bhf 2: Einfahrt S8, Timerstart S9
+    { SENSOR_S8, SENSOR_S10 }  // Bhf 3: Einfahrt S8, Timerstart S10
 };
 
 // Weichen-Pins gemäß deiner Vorgabe

@@ -35,7 +35,7 @@ void BahnhofController::handleEinfahrten(const SensorHub& hub, uint32_t changed)
 
     for (uint8_t bhf = 0; bhf < BHF_COUNT; ++bhf)
     {
-        uint8_t sIdx = BHF_EINFAHRT_SENSOR_INDEX[bhf];
+        uint8_t sIdx = BHF_SENSOR_CONFIG[bhf].einfahrtSensorIndex;
         if (sIdx >= 32) continue;
 
         uint32_t mask = (1UL << sIdx);
@@ -48,6 +48,13 @@ void BahnhofController::handleEinfahrten(const SensorHub& hub, uint32_t changed)
             st.powerOn  = false;      // Stromgleis AUS bei Einfahrt
             // Timer läuft hier noch nicht, nur Strom aus
 
+#ifdef BHF_DEBUG
+            BHF_LOG(F("[BHF] einfahrt bhf=")); BHF_LOG(bhf);
+            BHF_LOG(F(" sensor=S")); BHF_LOG(sIdx);
+            BHF_LOG(F(" powerOn=")); BHF_LOG(st.powerOn ? F("1") : F("0"));
+            BHF_LOG(F(" occupied=")); BHF_LOGLN(st.occupied ? F("1") : F("0"));
+#endif
+
             m_lastEventBhf = bhf;
         }
     }
@@ -59,7 +66,7 @@ void BahnhofController::handleTimerStarts(const SensorHub& hub, uint32_t changed
 
     for (uint8_t bhf = 0; bhf < BHF_COUNT; ++bhf)
     {
-        uint8_t sIdx = BHF_TIMER_SENSOR_INDEX[bhf];
+        uint8_t sIdx = BHF_SENSOR_CONFIG[bhf].timerStartSensorIndex;
         if (sIdx >= 32) continue;
 
         uint32_t mask = (1UL << sIdx);
@@ -70,6 +77,12 @@ void BahnhofController::handleTimerStarts(const SensorHub& hub, uint32_t changed
 
             st.timerRunning = true;
             st.timerStartMs = now;
+
+#ifdef BHF_DEBUG
+            BHF_LOG(F("[BHF] timerStart bhf=")); BHF_LOG(bhf);
+            BHF_LOG(F(" sensor=S")); BHF_LOG(sIdx);
+            BHF_LOG(F(" durationMs=")); BHF_LOGLN(st.timerDuration);
+#endif
 
             m_lastEventBhf = bhf;
         }
@@ -92,6 +105,12 @@ void BahnhofController::handleTimers()
                 st.timerRunning = false;
                 st.powerOn      = true;   // Stromgleis wieder AN
 
+#ifdef BHF_DEBUG
+                BHF_LOG(F("[BHF] timerDone bhf=")); BHF_LOG(bhf);
+                BHF_LOG(F(" durationMs=")); BHF_LOG(st.timerDuration);
+                BHF_LOG(F(" powerOn=")); BHF_LOGLN(st.powerOn ? F("1") : F("0"));
+#endif
+
                 m_lastEventBhf = bhf;
 
                 // Hinweis: occupied bleibt TRUE, d.h. Zug steht (oder stand) dort.
@@ -109,6 +128,11 @@ void BahnhofController::manualRelease(uint8_t bhf)
 
     st.powerOn      = true;
     st.timerRunning = false;
+
+#ifdef BHF_DEBUG
+    BHF_LOG(F("[BHF] manualRelease bhf=")); BHF_LOG(bhf);
+    BHF_LOG(F(" powerOn=")); BHF_LOGLN(st.powerOn ? F("1") : F("0"));
+#endif
 
     m_lastEventBhf = bhf;
 

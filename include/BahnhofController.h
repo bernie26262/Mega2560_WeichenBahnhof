@@ -3,6 +3,16 @@
 #include "SensorHub.h"
 #include "pins_mega1.h"
 
+// Optionales Debug-Logging für BahnhofController.
+// Aktivieren via build_flags: -DBHF_DEBUG
+#ifdef BHF_DEBUG
+  #define BHF_LOG(...) Serial.print(__VA_ARGS__)
+  #define BHF_LOGLN(...) Serial.println(__VA_ARGS__)
+#else
+  #define BHF_LOG(...) do {} while (0)
+  #define BHF_LOGLN(...) do {} while (0)
+#endif
+
 // Zustand eines einzelnen Bahnhofs
 struct BahnhofState
 {
