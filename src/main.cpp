@@ -16,8 +16,42 @@
 // Debug: Trace input-driven changes (Weichen IST, PowerMask)
 // Set to 0 to silence.
 #ifndef DEBUG_M1_TRACE_INPUTS
-#define DEBUG_M1_TRACE_INPUTS 1
+#define DEBUG_M1_TRACE_INPUTS 0
 #endif
+
+// Boot-/Crash-Diagnose: Reset-Ursache aus MCUSR loggen
+#ifndef DEBUG_M1_RESET_CAUSE
+#define DEBUG_M1_RESET_CAUSE 0
+#endif
+
+// Periodisches M1-I2C/DRDY-Statuslog.
+// 1 = aktiv, 0 = aus. Für ruhige Test-Envs standardmäßig aus.
+#ifndef DEBUG_M1_I2C_HEARTBEAT
+#define DEBUG_M1_I2C_HEARTBEAT 0
+#endif
+
+static void logResetCauseIfEnabled()
+{
+#if DEBUG_M1_RESET_CAUSE
+    const uint8_t mcusr = MCUSR;
+    MCUSR = 0;
+
+    Serial.print(F("[M1RST] MCUSR=0x"));
+    Serial.print(mcusr, HEX);
+    Serial.print(F(" cause="));
+
+    bool any = false;
+    if (mcusr & _BV(PORF))  { Serial.print(F("POR "));  any = true; }
+    if (mcusr & _BV(EXTRF)) { Serial.print(F("EXTR ")); any = true; }
+    if (mcusr & _BV(BORF))  { Serial.print(F("BOR "));  any = true; }
+    if (mcusr & _BV(WDRF))  { Serial.print(F("WDR "));  any = true; }
+    if (mcusr & _BV(JTRF))  { Serial.print(F("JTRF ")); any = true; }
+    if (!any) Serial.print(F("none"));
+    Serial.println();
+#else
+    MCUSR = 0;
+#endif
+}
 
 
 // --------------------------------------------------
@@ -117,6 +151,7 @@ void setup()
     delay(200);
     Serial.println();
     Serial.println(F("=== Mega1 boot ==="));
+    logResetCauseIfEnabled();
 
     // Startup-Checklist Flags:
     // selftestDone muss nach jedem Mega1-Boot wieder "0" sein,
@@ -139,6 +174,7 @@ void setup()
     fahrstrassen.begin();
     modusController.begin();
     trackPowerHub.begin();
+    bfController.setPowerHub(&trackPowerHub);
 
     // Force first stable DIAG after inputs are settled
     mega1SetPending(M1_PEND_DIAG);
@@ -186,7 +222,7 @@ void loop()
     static uint8_t  lastCmd   = 0xFF;
     static uint8_t  lastLen   = 0xFF;
 
-    if (now - lastPrint >= 1000)
+    if (DEBUG_M1_I2C_HEARTBEAT && (now - lastPrint >= 1000))
     {
         lastPrint = now;
 
@@ -196,6 +232,7 @@ void loop()
 
         const bool changed =
             (pend != lastPend) ||
+            (s.reqCount != lastReq) || (s.rxCount != lastRx) ||
             (s.lastCmd != lastCmd) || (s.lastRxLen != lastLen);
 
         const bool heartbeat = (now - lastHeartbeat) >= 10000;
@@ -219,7 +256,6 @@ void loop()
             Serial.print(F(" lastCmd=0x"));
             if (s.lastCmd < 0x10) Serial.print('0');
             Serial.print(s.lastCmd, HEX);
-            Serial.print(F(" len=")); Serial.println(s.lastRxLen);
             Serial.print(F(" len=")); Serial.print(s.lastRxLen);
             #if DEBUG_M1_TRACE_INPUTS
             // Zusatz: relevante Zustände, die UI/ESP interessieren

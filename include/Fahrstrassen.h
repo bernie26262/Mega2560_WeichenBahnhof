@@ -1,42 +1,9 @@
 #pragma once
 #include <Arduino.h>
 
-// WICHTIG: zuerst die Anzahl der Fahrstraßen!
-#include "Fahrstrassen_defs.h"
-
-#include "types.h"
+#include "BetriebsstellenConfig.h"
 #include "SensorHub.h"
 #include "WeichenHub.h"
-
-// --------------------------------------------------
-// Weichen-Schalt-Schritt einer Fahrstraße
-// --------------------------------------------------
-struct WeichenSchaltSchritt
-{
-    uint8_t  weichenIndex;
-    Richtung richtung;
-    uint8_t  minCount;
-};
-
-// --------------------------------------------------
-// Definition einer Fahrstraße
-// --------------------------------------------------
-struct SteuerungWeichenDefinition
-{
-    const char* name;           // Sprechender Name der Fahrstraße
-    uint8_t     triggerSensor;  // Auslösender Schaltgleis-Sensor
-    uint8_t     resetSensors[4];// Sensoren, die Zähler/aktiv-Status zurücksetzen
-    uint8_t     numReset;
-
-    const WeichenSchaltSchritt* steps;
-    uint8_t  numSteps;
-};
-
-// --------------------------------------------------
-// ZENTRALE Fahrstraßen-Definition
-// (Definition in src/Fahrstrassen_defs.cpp)
-// --------------------------------------------------
-extern const SteuerungWeichenDefinition STW_DEFS[NUM_STW_FS];
 
 // --------------------------------------------------
 // Fahrstraßen-Controller

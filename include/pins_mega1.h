@@ -1,6 +1,7 @@
 #pragma once
 #include <Arduino.h>
 #include "types.h"
+#include "BetriebsstellenConfig.h"
 
 // ---------------------------------------------------------------------------
 //  Mega1 Pin-/Index-Konstanten
@@ -34,21 +35,6 @@ enum SensorIndex : uint8_t
     SENSOR_S9  = 9,  // Pin 35 - Fahrstraße
     SENSOR_S10 = 10  // Pin 34 - S10 Fahrstraße
 };
-
-// ---------------------------------------------------------------------------
-//  Bahnhofs-Zuordnung
-// ---------------------------------------------------------------------------
-
-constexpr uint8_t BHF_COUNT = 4;
-
-struct BahnhofSensorConfig
-{
-    uint8_t einfahrtSensorIndex;
-    uint8_t timerStartSensorIndex;
-};
-
-// Zentrale fachliche Zuordnung je Bahnhof.
-extern const BahnhofSensorConfig BHF_SENSOR_CONFIG[BHF_COUNT];
 
 // ---------------------------------------------------------------------------
 //  Weichen-Pins

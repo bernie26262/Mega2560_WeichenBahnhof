@@ -2,6 +2,8 @@
 #include <Arduino.h>
 #include "SensorHub.h"
 #include "pins_mega1.h"
+#include "BetriebsstellenConfig.h"
+#include "TrackPowerHub.h"
 
 // Optionales Debug-Logging für BahnhofController.
 // Aktivieren via build_flags: -DBHF_DEBUG
@@ -27,6 +29,8 @@ class BahnhofController
 {
 public:
     void begin();
+    
+    void setPowerHub(TrackPowerHub* hub) { m_powerHub = hub; }
 
     // Aufruf aus loop(): Sensorereignisse + Timer verarbeiten
     void update(const SensorHub& hub);
@@ -47,6 +51,7 @@ private:
     BahnhofState m_bhf[BHF_COUNT];
     uint8_t      m_errorFlags  = 0;
     uint8_t      m_lastEventBhf = 255; // 255 = kein Event
+    TrackPowerHub* m_powerHub = nullptr;
 
     void handleEinfahrten(const SensorHub& hub, uint32_t changed);
     void handleTimerStarts(const SensorHub& hub, uint32_t changed);

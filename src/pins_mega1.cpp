@@ -36,13 +36,6 @@ const int8_t SENSOR_PINS[NUM_SENSORS] =
     -1  // 23
 };
 
-const BahnhofSensorConfig BHF_SENSOR_CONFIG[BHF_COUNT] =
-{
-    { SENSOR_S2, SENSOR_S5  }, // Bhf 0: Einfahrt S2, Timerstart S5
-    { SENSOR_S2, SENSOR_S3  }, // Bhf 1: Einfahrt S2, Timerstart S3
-    { SENSOR_S8, SENSOR_S9  }, // Bhf 2: Einfahrt S8, Timerstart S9
-    { SENSOR_S8, SENSOR_S10 }  // Bhf 3: Einfahrt S8, Timerstart S10
-};
 
 // Weichen-Pins gemäß deiner Vorgabe
 const WPins WEICHEN_PINS[NUM_WEICHEN] =

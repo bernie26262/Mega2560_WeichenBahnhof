@@ -1,7 +1,7 @@
 #pragma once
 #include <Arduino.h>
 #include "pins_mega1.h"
-#include "Fahrstrassen_defs.h"
+#include "BetriebsstellenConfig.h"
 
 // ==================================================
 // Status-Payload Mega1 → ESP32

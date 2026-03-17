@@ -1,6 +1,6 @@
 #include "Fahrstrassen.h"
 #include "payload.h"
-#include "Fahrstrassen_defs.h"
+#include "BetriebsstellenConfig.h"
 #include "pins_mega1.h"
 
 #ifdef FS_DEBUG
@@ -23,14 +23,14 @@ static const char* sensorIndexToName(uint8_t idx)
     }
 }
 
-static void logFsReset(uint8_t fs, const SteuerungWeichenDefinition& def, uint8_t sensorIdx)
+static void logFsReset(uint8_t fs, const FahrstrassenConfig& def, uint8_t sensorIdx)
 {
     Serial.print(F("[FS] reset fs=")); Serial.print(fs);
     Serial.print(F(" name=\"")); Serial.print(def.name); Serial.print(F("\""));
     Serial.print(F(" sensor=")); Serial.println(sensorIndexToName(sensorIdx));
 }
 
-static void logFsTrigger(uint8_t fs, const SteuerungWeichenDefinition& def, uint8_t sensorIdx, uint8_t counter)
+static void logFsTrigger(uint8_t fs, const FahrstrassenConfig& def, uint8_t sensorIdx, uint8_t counter)
 {
     Serial.print(F("[FS] trigger fs=")); Serial.print(fs);
     Serial.print(F(" name=\"")); Serial.print(def.name); Serial.print(F("\""));
@@ -38,7 +38,7 @@ static void logFsTrigger(uint8_t fs, const SteuerungWeichenDefinition& def, uint
     Serial.print(F(" count=")); Serial.println(counter);
 }
 
-static void logFsApplyStep(uint8_t fs, const SteuerungWeichenDefinition& def, uint8_t weiche, bool gerade, uint8_t counter)
+static void logFsApplyStep(uint8_t fs, const FahrstrassenConfig& def, uint8_t weiche, bool gerade, uint8_t counter)
 {
     Serial.print(F("[FS] apply fs=")); Serial.print(fs);
     Serial.print(F(" name=\"")); Serial.print(def.name); Serial.print(F("\""));
@@ -71,7 +71,7 @@ uint8_t Fahrstrassen::getCounter(uint8_t fs) const
 // --------------------------------------------------
 void Fahrstrassen::applySteps(uint8_t fs, WeichenHub& weichenHub)
 {
-    const SteuerungWeichenDefinition& def = STW_DEFS[fs];
+    const FahrstrassenConfig& def = FAHRSTRASSEN_CONFIG[fs];
     uint8_t counter = m_fsState[fs].counter;
 
     bool hasCmd[NUM_WEICHEN]     = {false};
@@ -107,7 +107,7 @@ void Fahrstrassen::handleSensorEvents(const SensorHub& hub,
 
     for (uint8_t fs = 0; fs < NUM_STW_FS; ++fs)
     {
-        const SteuerungWeichenDefinition& def = STW_DEFS[fs];
+        const FahrstrassenConfig& def = FAHRSTRASSEN_CONFIG[fs];
 
         // ---------------- Reset-Sensoren ----------------
         for (uint8_t r = 0; r < def.numReset; ++r)
