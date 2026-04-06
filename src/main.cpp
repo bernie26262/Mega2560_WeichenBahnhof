@@ -30,6 +30,11 @@
 #define DEBUG_M1_I2C_HEARTBEAT 0
 #endif
 
+// Boot-Logs (Banner + [M1BOOT])
+#ifndef DEBUG_M1_BOOT_LOG
+#define DEBUG_M1_BOOT_LOG 1
+#endif
+
 static void logResetCauseIfEnabled()
 {
 #if DEBUG_M1_RESET_CAUSE
@@ -149,8 +154,11 @@ void setup()
 {
     Serial.begin(115200);
     delay(200);
+    
+    #if DEBUG_M1_BOOT_LOG
     Serial.println();
     Serial.println(F("=== Mega1 boot ==="));
+    #endif
     logResetCauseIfEnabled();
 
     // Startup-Checklist Flags:
@@ -192,6 +200,7 @@ void setup()
 
     i2cSlaveBegin(I2C_ADDR_MEGA1);
 
+    #if DEBUG_M1_BOOT_LOG
     // One-shot boot log: helps field-debug (no ISR logs)
     {
         const uint16_t pend = mega1GetPending();
@@ -203,6 +212,7 @@ void setup()
         Serial.print(F(" i2c=READY drdyPin=")); Serial.print(drdyPin);
         Serial.print(F(" pending=0x")); Serial.println(pend, HEX);
     }
+    #endif
 }
 
 void loop()
@@ -300,6 +310,12 @@ void loop()
             fahrstrassen.handleSensorEvents(sensorHub, weichenHub);
             bfController.update(sensorHub);
         }
+
+        // Wichtig:
+        // changedMask ist für die Logik sticky und wird erst NACH der
+        // Verarbeitung gelöscht. Dadurch gehen zwischen Sensor-Polling
+        // und Logik-Tick keine akzeptierten Sensor-Events mehr verloren.
+        sensorHub.clearChangedMask();
     }
 
     // ---------------- Weichen Scheduler ----------------

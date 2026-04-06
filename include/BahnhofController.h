@@ -20,6 +20,7 @@ struct BahnhofState
 {
     bool     occupied      = false;  // Zug im Bahnhof?
     bool     powerOn       = true;   // Stromgleis an/aus
+    bool     entryLatched  = false;  // Einfahrt dieses Zyklus bereits verarbeitet?
     bool     timerRunning  = false;  // Timer aktiv?
     uint32_t timerStartMs  = 0;      // Startzeitpunkt des Timers
     uint32_t timerDuration = 0;      // Wartezeit in ms (z.B. 5000)
@@ -55,5 +56,6 @@ private:
 
     void handleEinfahrten(const SensorHub& hub, uint32_t changed);
     void handleTimerStarts(const SensorHub& hub, uint32_t changed);
+    void handleEntryResets(const SensorHub& hub, uint32_t changed);
     void handleTimers();
 };

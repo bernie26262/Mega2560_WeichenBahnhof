@@ -22,6 +22,8 @@ struct BahnhofConfig
     const char* name;
     uint8_t     einfahrtSensorIndex;
     uint8_t     timerStartSensorIndex;
+    uint8_t     resetSensors[2];
+    uint8_t     numResetSensors;
     uint32_t    timerDurationMs;
     const char* kommentar;
 };

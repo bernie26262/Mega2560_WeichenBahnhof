@@ -3,7 +3,22 @@
 #include "BetriebsstellenConfig.h"
 #include "pins_mega1.h"
 
-#ifdef FS_DEBUG
+#ifndef FS_DEBUG_FS0_ONLY
+#define FS_DEBUG_FS0_ONLY 0
+#endif
+
+ #ifdef FS_DEBUG
+static bool shouldLogFs(uint8_t fs)
+{
+#if FS_DEBUG_FS0_ONLY
+    return fs == 0;
+#else
+    (void)fs;
+    return true;
+#endif
+}
+
+
 static const char* sensorIndexToName(uint8_t idx)
 {
     switch (idx)
@@ -25,6 +40,7 @@ static const char* sensorIndexToName(uint8_t idx)
 
 static void logFsReset(uint8_t fs, const FahrstrassenConfig& def, uint8_t sensorIdx)
 {
+    if (!shouldLogFs(fs)) return;
     Serial.print(F("[FS] reset fs=")); Serial.print(fs);
     Serial.print(F(" name=\"")); Serial.print(def.name); Serial.print(F("\""));
     Serial.print(F(" sensor=")); Serial.println(sensorIndexToName(sensorIdx));
@@ -32,6 +48,7 @@ static void logFsReset(uint8_t fs, const FahrstrassenConfig& def, uint8_t sensor
 
 static void logFsTrigger(uint8_t fs, const FahrstrassenConfig& def, uint8_t sensorIdx, uint8_t counter)
 {
+    if (!shouldLogFs(fs)) return;
     Serial.print(F("[FS] trigger fs=")); Serial.print(fs);
     Serial.print(F(" name=\"")); Serial.print(def.name); Serial.print(F("\""));
     Serial.print(F(" sensor=")); Serial.print(sensorIndexToName(sensorIdx));
@@ -40,6 +57,7 @@ static void logFsTrigger(uint8_t fs, const FahrstrassenConfig& def, uint8_t sens
 
 static void logFsApplyStep(uint8_t fs, const FahrstrassenConfig& def, uint8_t weiche, bool gerade, uint8_t counter)
 {
+    if (!shouldLogFs(fs)) return;
     Serial.print(F("[FS] apply fs=")); Serial.print(fs);
     Serial.print(F(" name=\"")); Serial.print(def.name); Serial.print(F("\""));
     Serial.print(F(" weiche=W")); Serial.print(weiche);
@@ -73,6 +91,49 @@ void Fahrstrassen::applySteps(uint8_t fs, WeichenHub& weichenHub)
 {
     const FahrstrassenConfig& def = FAHRSTRASSEN_CONFIG[fs];
     uint8_t counter = m_fsState[fs].counter;
+
+    // --------------------------------------------------
+    // FS1: Trigger S2, alternierend odd/even
+    // odd  count: W1 A, W2 G, W3 G, W5 A, W6 G, W7 G, W8 G
+    // even count: W5 G
+    //
+    // Hinweis:
+    // Das vorhandene minCount-Modell ist monoton (counter >= minCount)
+    // und kann echtes Odd/Even-Umschalten nicht ausdrücken.
+    // Daher hier bewusst als kleine fachliche Sonderlogik.
+    // --------------------------------------------------
+    if (fs == 1)
+    {
+        const bool odd = (counter & 0x01u) != 0;
+
+        if (odd)
+        {
+#ifdef FS_DEBUG
+            logFsApplyStep(fs, def, 1, false, counter); // W1 ABBIEGEN
+            logFsApplyStep(fs, def, 2, true,  counter); // W2 GERADE
+            logFsApplyStep(fs, def, 3, true,  counter); // W3 GERADE
+            logFsApplyStep(fs, def, 5, false, counter); // W5 ABBIEGEN
+            logFsApplyStep(fs, def, 6, true,  counter); // W6 GERADE
+            logFsApplyStep(fs, def, 7, true,  counter); // W7 GERADE
+            logFsApplyStep(fs, def, 8, true,  counter); // W8 GERADE
+#endif
+            weichenHub.enqueueWeiche(1, false);
+            weichenHub.enqueueWeiche(2, true);
+            weichenHub.enqueueWeiche(3, true);
+            weichenHub.enqueueWeiche(5, false);
+            weichenHub.enqueueWeiche(6, true);
+            weichenHub.enqueueWeiche(7, true);
+            weichenHub.enqueueWeiche(8, true);
+        }
+        else
+        {
+#ifdef FS_DEBUG
+            logFsApplyStep(fs, def, 5, true, counter); // W5 GERADE
+#endif
+            weichenHub.enqueueWeiche(5, true);
+        }
+        return;
+    }
 
     bool hasCmd[NUM_WEICHEN]     = {false};
     bool finalState[NUM_WEICHEN] = {false};

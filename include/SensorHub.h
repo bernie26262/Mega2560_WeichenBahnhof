@@ -3,10 +3,14 @@
 #include "pins_mega1.h"
 
 // Zug-Entprellzeit pro Sensor (erste Achse zählt)
-constexpr uint32_t SENSOR_TRAIN_DEBOUNCE_MS = 4000;
+constexpr uint32_t SENSOR_TRAIN_DEBOUNCE_MS = 1500;
 // Glitch-Filter: Rohwert muss so lange stabil sein, bevor wir ihn als "gültig" werten.
 // (Schützt gegen kurze EMV-Spikes / Übersprechen bei offenen/hochohmigen Leitungen)
 constexpr uint32_t SENSOR_GLITCH_MS = 20;
+
+#ifndef DEBUG_M1_SENSOR_S0_LOG
+#define DEBUG_M1_SENSOR_S0_LOG 0
+#endif
 
 class SensorHub
 {
@@ -16,6 +20,7 @@ public:
 
     bool isActive(uint8_t index) const;
     uint32_t changedMask() const;
+    void clearChangedMask();
     uint16_t buildKontaktBits() const;
 
 

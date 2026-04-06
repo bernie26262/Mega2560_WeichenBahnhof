@@ -21,11 +21,42 @@ void BahnhofController::update(const SensorHub& hub)
 
     if (changed != 0)
     {
+        handleEntryResets(hub, changed);
         handleEinfahrten(hub, changed);
         handleTimerStarts(hub, changed);
     }
 
     handleTimers();
+}
+
+void BahnhofController::handleEntryResets(const SensorHub& hub, uint32_t changed)
+{
+    for (uint8_t bhf = 0; bhf < BHF_COUNT; ++bhf)
+    {
+        BahnhofState& st = m_bhf[bhf];
+        const BahnhofConfig& cfg = BAHNHOF_CONFIG[bhf];
+
+        for (uint8_t i = 0; i < cfg.numResetSensors; ++i)
+        {
+            const uint8_t sIdx = cfg.resetSensors[i];
+            if (sIdx >= 32) continue;
+
+            const uint32_t mask = (1UL << sIdx);
+            if ((changed & mask) && hub.isActive(sIdx))
+            {
+                st.entryLatched = false;
+
+#ifdef BHF_DEBUG
+                BHF_LOG(F("[BHF] entryReset bhf=")); BHF_LOG(bhf);
+                BHF_LOG(F(" sensor=S")); BHF_LOG(sIdx);
+                BHF_LOGLN(F(" entryLatched=0"));
+#endif
+
+                m_lastEventBhf = bhf;
+                break;
+            }
+        }
+    }
 }
 
 void BahnhofController::handleEinfahrten(const SensorHub& hub, uint32_t changed)
@@ -43,13 +74,22 @@ void BahnhofController::handleEinfahrten(const SensorHub& hub, uint32_t changed)
         if ((changed & mask) && hub.isActive(sIdx))
         {
             BahnhofState& st = m_bhf[bhf];
+            if (st.entryLatched)
+            {
+#ifdef BHF_DEBUG
+                BHF_LOG(F("[BHF] einfahrt ignored bhf=")); BHF_LOG(bhf);
+                BHF_LOG(F(" sensor=S")); BHF_LOG(sIdx);
+                BHF_LOGLN(F(" reason=entryLatched"));
+#endif
+                continue;
+            }
 
             st.occupied = true;
+            st.entryLatched = true;
             st.powerOn  = false;      // Stromgleis AUS bei Einfahrt
             if (m_powerHub) {
                 m_powerHub->setPower(bhf, false);
             }
-            // Timer läuft hier noch nicht, nur Strom aus
 
 #ifdef BHF_DEBUG
             BHF_LOG(F("[BHF] einfahrt bhf=")); BHF_LOG(bhf);
@@ -80,11 +120,13 @@ void BahnhofController::handleTimerStarts(const SensorHub& hub, uint32_t changed
 
             st.timerRunning = true;
             st.timerStartMs = now;
+            // Timerstart darf bei jeder Überfahrt neu gesetzt werden.
 
 #ifdef BHF_DEBUG
             BHF_LOG(F("[BHF] timerStart bhf=")); BHF_LOG(bhf);
             BHF_LOG(F(" sensor=S")); BHF_LOG(sIdx);
-            BHF_LOG(F(" durationMs=")); BHF_LOGLN(st.timerDuration);
+            BHF_LOG(F(" durationMs=")); BHF_LOG(st.timerDuration);
+            BHF_LOGLN(F(" restart=1"));
 #endif
 
             m_lastEventBhf = bhf;
@@ -110,6 +152,7 @@ void BahnhofController::handleTimers()
                 if (m_powerHub) {
                     m_powerHub->setPower(bhf, true);
                 }
+                // entryLatched bleibt bewusst unverändert; Reset erfolgt über Sensorsignal.
 
 #ifdef BHF_DEBUG
                 BHF_LOG(F("[BHF] timerDone bhf=")); BHF_LOG(bhf);
@@ -133,6 +176,7 @@ void BahnhofController::manualRelease(uint8_t bhf)
 
     st.powerOn      = true;
     st.timerRunning = false;
+    st.entryLatched = false;
     if (m_powerHub) {
         m_powerHub->setPower(bhf, true);
     }

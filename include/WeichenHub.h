@@ -1,6 +1,21 @@
 #pragma once
 
 #include <Arduino.h>
+
+// Rückmelder-Logging:
+// 1 = [RM]-Logs aktiv
+// 0 = [RM]-Logs aus
+#ifndef DEBUG_M1_RUECKMELDER_LOG
+#define DEBUG_M1_RUECKMELDER_LOG 1
+#endif
+
+// Mega1-Weichen-Selbsttest-Logging:
+// 1 = [M1] Selftest-Logs aktiv
+// 0 = aus
+#ifndef DEBUG_M1_SELFTEST_LOG
+#define DEBUG_M1_SELFTEST_LOG 1
+#endif
+
 #include "pins_mega1.h"
 
 // ==================================================

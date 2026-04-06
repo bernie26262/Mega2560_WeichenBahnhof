@@ -6,6 +6,21 @@ static inline const char* gaFromHigh(bool high)
     return high ? "G" : "A"; // HIGH = Gerade, LOW = Abbiegen
 }
 
+static inline bool reductionForcedActive(uint8_t index)
+{
+    // Sicherheitsvorgabe:
+    // W6 soll immer mit aktiver Reduktion betrieben werden,
+    // unabhängig von Soll- oder Ist-Stellung.
+    return index == 6;
+}
+
+static inline bool reductionShouldBeActive(uint8_t index, bool gerade)
+{
+    // Standard: Abbiegen => Reduktion aktiv
+    // Sonderfall W6: immer aktiv
+    return reductionForcedActive(index) ? true : (!gerade);
+}
+
 // Hinweis: Rückmeldung: LOW = ABBIEGEN, HIGH = GERADE (siehe readIstGerade)
 // WEICHEN_GRUNDSTELLUNG kommt aus pins_mega1.h via WeichenHub.h
 
@@ -41,14 +56,15 @@ void WeichenHub::begin()
 
         // Reduktions-Relais Zustand aus IST ableiten (Abbiegen => true)
         const bool hasRed = (WEICHEN_PINS[i].hasRed && WEICHEN_PINS[i].pinRed != 255);
-        m_redActive[i] = hasRed ? (!istGeradeNow) : false;
+        const bool redActiveNow = hasRed ? reductionShouldBeActive(i, istGeradeNow) : false;
+        m_redActive[i] = redActiveNow;
 
         // Reduktions-Relais (optional)
         if (WEICHEN_PINS[i].hasRed && WEICHEN_PINS[i].pinRed != 255)
         {
             pinMode(WEICHEN_PINS[i].pinRed, OUTPUT);
-            // LOW-Level-Relais: LOW = Reduktion aktiv (Abbiegen)
-            digitalWrite(WEICHEN_PINS[i].pinRed, istGeradeNow ? HIGH : LOW);
+            // LOW-Level-Relais: LOW = Reduktion aktiv
+            digitalWrite(WEICHEN_PINS[i].pinRed, redActiveNow ? LOW : HIGH);
         }
         
     }
@@ -132,9 +148,10 @@ bool WeichenHub::enqueueWeiche(uint8_t index, bool gerade)
     // Reduktions-Relais passend zum Sollzustand setzen (falls vorhanden)
     if (WEICHEN_PINS[index].hasRed && WEICHEN_PINS[index].pinRed != 255)
     {
-        // LOW-Level-Relais: LOW = Reduktion aktiv (Abbiegen)
-        digitalWrite(WEICHEN_PINS[index].pinRed, gerade ? HIGH : LOW);
-        m_redActive[index] = (!gerade);
+        const bool redActive = reductionShouldBeActive(index, gerade);
+        // LOW-Level-Relais: LOW = Reduktion aktiv
+        digitalWrite(WEICHEN_PINS[index].pinRed, redActive ? LOW : HIGH);
+        m_redActive[index] = redActive;
     }
 
     return true;
@@ -218,9 +235,10 @@ void WeichenHub::startPulseCustom(uint8_t index, bool gerade, uint32_t pulseMs)
     // Reduktions-Relais passend zum Zielzustand setzen (Abbiegen => LOW)
     if (p.hasRed && p.pinRed != 255)
     {
-        // LOW-Level-Relais: LOW = Reduktion aktiv (Abbiegen)
-        digitalWrite(p.pinRed, gerade ? HIGH : LOW);
-        m_redActive[index] = (!gerade);
+        const bool redActive = reductionShouldBeActive(index, gerade);
+        // LOW-Level-Relais: LOW = Reduktion aktiv
+        digitalWrite(p.pinRed, redActive ? LOW : HIGH);
+        m_redActive[index] = redActive;
     }
 
     // Spulen AUS
@@ -274,8 +292,9 @@ void WeichenHub::stopPulseAndCheck(const Cmd& cmd)
     // Reduktions-Relais auf IST synchronisieren (falls vorhanden)
     if (p.hasRed && p.pinRed != 255)
     {
-        digitalWrite(p.pinRed, istGerade ? HIGH : LOW);
-        m_redActive[cmd.index] = (!istGerade);
+        const bool redActive = reductionShouldBeActive(cmd.index, istGerade);
+        digitalWrite(p.pinRed, redActive ? LOW : HIGH);
+        m_redActive[cmd.index] = redActive;
     }
 
     WeichenStatus& st = m_status[cmd.index];
@@ -317,7 +336,9 @@ bool WeichenHub::startSelftest(uint16_t mask)
     // Skip to first valid index
     (void)selftestPickNextIndex();
 
+    #if DEBUG_M1_SELFTEST_LOG
     Serial.println(F("[M1] Weichen selftest started"));
+    #endif
     return true;
 }
 
@@ -388,6 +409,7 @@ void WeichenHub::selftestStartNextPulse(uint32_t nowMs)
     // Puls starten (500ms)
     startPulseCustom(m_stPulseIndex, m_stPulseTargetGerade, WEICHE_SELFTEST_PULSE_MS);
     // startPulseCustom setzt m_pulseActive/m_pulseUntilMs/m_activeCmd
+#if DEBUG_M1_SELFTEST_LOG
 
     Serial.print(F("[M1] ST pulse ON  W"));
     Serial.print(m_stPulseIndex);
@@ -398,6 +420,7 @@ void WeichenHub::selftestStartNextPulse(uint32_t nowMs)
     Serial.print(F(" phase="));
     Serial.print(m_stPhase);
     Serial.println(F(")"));
+#endif
 
     // Nächste Weiche für den nächsten Puls vorbereiten (Settle läuft parallel)
     m_stIndex++;
@@ -410,9 +433,11 @@ void WeichenHub::selftestPulseFinished(uint32_t nowMs)
     stopPulseOnly(m_stPulseIndex);
     m_pulseActive = false;
 
+#if DEBUG_M1_SELFTEST_LOG
     Serial.print(F("[M1] ST pulse OFF W"));
     Serial.print(m_stPulseIndex);
     Serial.println(F(" -> queued for settle/eval"));
+#endif
 
     // Eval nach Settle-Zeit in Queue einhängen
     (void)selftestEvalQPush(m_stPulseIndex, m_stPulseTargetGerade, nowMs + WEICHE_SELFTEST_SETTLE_MS);
@@ -451,6 +476,7 @@ void WeichenHub::selftestEvalDue(uint32_t nowMs)
             else    m_stFailMask |= bit;
         }
 
+#if DEBUG_M1_SELFTEST_LOG
         Serial.print(F("[M1] ST eval W"));
         Serial.print(it.index);
         Serial.print(F(" phase="));
@@ -461,6 +487,7 @@ void WeichenHub::selftestEvalDue(uint32_t nowMs)
         Serial.print(istGerade ? F("GERADE") : F("ABBIEGEN"));
         Serial.print(F(" ok="));
         Serial.println(ok ? F("1") : F("0"));
+#endif
 
         (void)selftestEvalQPop();
     }
@@ -505,7 +532,9 @@ void WeichenHub::selftestUpdate(uint32_t nowMs)
             m_stIndex = 0;
             selftestEvalQReset();
             (void)selftestPickNextIndex();
+#if DEBUG_M1_SELFTEST_LOG
             Serial.println(F("[M1] ST phase 0 done -> phase 1"));
+#endif
             return;
         }
 
@@ -533,7 +562,9 @@ void WeichenHub::selftestUpdate(uint32_t nowMs)
             Serial.println(overall ? F("OK") : F("FAIL"));
         }
 
+#if DEBUG_M1_SELFTEST_LOG
         Serial.println(F("[M1] Weichen selftest done"));
+#endif
         return;
     }
 }
@@ -606,9 +637,10 @@ void WeichenHub::pollRueckmelders(uint32_t now)
             const bool hasRed = (p.hasRed && p.pinRed != 255);
             if (hasRed)
             {
-                // LOW-Level-Relais: LOW = Reduktion aktiv (Abbiegen)
-                digitalWrite(p.pinRed, istNow ? HIGH : LOW);
-                m_redActive[i] = (!istNow);
+                const bool redActive = reductionShouldBeActive(i, istNow);
+                // LOW-Level-Relais: LOW = Reduktion aktiv
+                digitalWrite(p.pinRed, redActive ? LOW : HIGH);
+                m_redActive[i] = redActive;
             }
             else
             {
@@ -622,6 +654,8 @@ void WeichenHub::pollRueckmelders(uint32_t now)
     // Rueckmelder Debug: Log bei Aenderung + periodisch
     // -------------------------------------------------
     const bool changed  = (rawBits != m_lastRueckRawBits);
+
+#if DEBUG_M1_RUECKMELDER_LOG
     const bool periodic = ((uint32_t)(now - m_lastRueckLogMs) >= 1000);
 
     if (changed || periodic)
@@ -658,8 +692,10 @@ void WeichenHub::pollRueckmelders(uint32_t now)
         }
 
         Serial.println();
-        m_lastRueckRawBits = rawBits;
     }
+#endif
+
+    m_lastRueckRawBits = rawBits;
 }
 
 uint16_t WeichenHub::buildWeichenBits() const

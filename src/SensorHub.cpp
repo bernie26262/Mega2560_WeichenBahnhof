@@ -1,5 +1,38 @@
 #include "SensorHub.h"
 
+
+#if DEBUG_M1_SENSOR_S0_LOG
+static inline bool isS0(uint8_t i) { return i == SENSOR_S0; }
+
+static void logS0RawFlip(uint32_t now, bool rawActive)
+{
+    Serial.print(F("[S0] rawFlip t=")); Serial.print(now);
+    Serial.print(F(" rawActive=")); Serial.println(rawActive ? 1 : 0);
+}
+
+static void logS0Unblock(uint32_t now)
+{
+    Serial.print(F("[S0] unblock t=")); Serial.println(now);
+}
+
+static void logS0EntryAccepted(uint32_t now, uint32_t unblockAt)
+{
+    Serial.print(F("[S0] entry ACCEPT t=")); Serial.print(now);
+    Serial.print(F(" unblockAt=")); Serial.println(unblockAt);
+}
+
+static void logS0EntryBlocked(uint32_t now, uint32_t unblockAt)
+{
+    Serial.print(F("[S0] entry BLOCKED t=")); Serial.print(now);
+    Serial.print(F(" unblockAt=")); Serial.println(unblockAt);
+}
+
+static void logS0Exit(uint32_t now)
+{
+    Serial.print(F("[S0] exit t=")); Serial.println(now);
+}
+#endif
+
 void SensorHub::begin()
 {
     m_stateMask   = 0;
@@ -16,7 +49,6 @@ void SensorHub::begin()
 
 void SensorHub::update()
 {
-    m_changedMask = 0;
     uint32_t now = millis();
 
     for (uint8_t i = 0; i < NUM_SENSORS; ++i)
@@ -54,6 +86,9 @@ void SensorHub::update()
         {
             m_db[i].rawLast    = rawActive;
             m_db[i].rawSinceMs = now;
+#if DEBUG_M1_SENSOR_S0_LOG
+            if (isS0(i)) logS0RawFlip(now, rawActive);
+#endif
             continue;
         }
         // 3) Noch nicht lange genug stabil? dann ignorieren
@@ -69,6 +104,9 @@ void SensorHub::update()
         if (m_db[i].blocked && (int32_t)(now - m_db[i].unblockAtMs) >= 0)
         {
             m_db[i].blocked = false;
+#if DEBUG_M1_SENSOR_S0_LOG
+            if (isS0(i)) logS0Unblock(now);
+#endif
         }
 
         // ENTRY: erste Achse (HIGH -> LOW)
@@ -84,7 +122,16 @@ void SensorHub::update()
 
                 m_db[i].blocked     = true;
                 m_db[i].unblockAtMs = now + SENSOR_TRAIN_DEBOUNCE_MS;
+#if DEBUG_M1_SENSOR_S0_LOG
+                if (isS0(i)) logS0EntryAccepted(now, m_db[i].unblockAtMs);
+#endif
             }
+#if DEBUG_M1_SENSOR_S0_LOG
+            else
+            {
+                if (isS0(i)) logS0EntryBlocked(now, m_db[i].unblockAtMs);
+            }
+#endif
         }
 
         // EXIT: letzte Achse (LOW -> HIGH), NO trigger
@@ -93,8 +140,16 @@ void SensorHub::update()
             m_db[i].trainPresent = false;
             m_stateMask &= ~(1UL << i);
             m_fallMask  |= (1UL << i); // logical fall: active -> inactive
+#if DEBUG_M1_SENSOR_S0_LOG
+            if (isS0(i)) logS0Exit(now);
+#endif
         }
     }
+}
+
+void SensorHub::clearChangedMask()
+{
+    m_changedMask = 0;
 }
 
 bool SensorHub::isActive(uint8_t index) const

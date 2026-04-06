@@ -10,29 +10,33 @@ const BahnhofConfig BAHNHOF_CONFIG[BHF_COUNT] =
         "Bhf0",
         SENSOR_S2,
         SENSOR_S5,
+        { SENSOR_S1, SENSOR_S6 }, 2,
         5000,
-        "Einfahrt ueber S2, Timerstart ueber S5"
+        "Einfahrt ueber S2, Timerstart ueber S5, Reset ueber S1 oder S6"
     },
     {
         "Bhf1",
         SENSOR_S2,
         SENSOR_S3,
+        { SENSOR_S1, SENSOR_S6 }, 2,
         5000,
-        "Einfahrt ueber S2, Timerstart ueber S3"
+        "Einfahrt ueber S2, Timerstart ueber S3, Reset ueber S1 oder S6"
     },
     {
         "Bhf2",
         SENSOR_S8,
         SENSOR_S9,
+        { SENSOR_S10, 255 }, 1,
         5000,
-        "Einfahrt ueber S8, Timerstart ueber S9"
+        "Einfahrt ueber S8, Timerstart ueber S9, Reset ueber S10"
     },
     {
         "Bhf3",
         SENSOR_S8,
         SENSOR_S10,
+        { SENSOR_S10, 255 }, 1,
         5000,
-        "Einfahrt ueber S8, Timerstart ueber S10"
+        "Einfahrt ueber S8, Timerstart ueber S10, Reset ueber S10"
     }
 };
 
@@ -63,29 +67,27 @@ static const WeichenSchaltSchritt FS0_STEPS[] =
 };
 
 // --------------------------------------------------
-// FS1: Folgefahrt ab S2
+// FS1: Folgefahrt ab S2, alternierend ungerade/gerade
 // Trigger: S2
-// Reset  : keiner
-// Wirkung ab count >= 2:
-//   W1 abbiegen, W3 gerade
+// Reset  : S6
+// Wirkung:
+//   ungerade count : W1 A, W2 G, W3 G, W5 A, W6 G, W7 G, W8 G
+//   gerade count   : W5 G
 // --------------------------------------------------
-static const WeichenSchaltSchritt FS1_STEPS[] =
-{
-    { 1, ABBIEGEN, 2 }, // W1 erst ab der 2. Auslösung abbiegen
-    { 3, GERADE,   2 }  // W3 erst ab der 2. Auslösung gerade
-};
+static const WeichenSchaltSchritt FS1_STEPS[] = {};
 
 // --------------------------------------------------
 // FS2: Folgefahrt ab S4
 // Trigger: S4
 // Reset  : keiner
 // Wirkung:
-//   W1 abbiegen, W7 gerade
+//   W1 abbiegen, W7 gerade, W8 gerade
 // --------------------------------------------------
 static const WeichenSchaltSchritt FS2_STEPS[] =
 {
     { 1, ABBIEGEN, 0 }, // W1 sofort abbiegen
-    { 7, GERADE,   0 }  // W7 sofort gerade
+    { 7, GERADE,   0 }, // W7 sofort gerade
+    { 8, GERADE,   0 }  // W8 sofort gerade
 };
 
 // --------------------------------------------------
@@ -93,12 +95,14 @@ static const WeichenSchaltSchritt FS2_STEPS[] =
 // Trigger: S7
 // Reset  : keiner
 // Wirkung:
-//   W2 abbiegen, W3 gerade
+//   W2 abbiegen, W3 gerade, W6 abbiegen, W7 abbiegen
 // --------------------------------------------------
 static const WeichenSchaltSchritt FS3_STEPS[] =
 {
     { 2, ABBIEGEN, 0 }, // W2 sofort abbiegen
-    { 3, GERADE,   0 }  // W3 sofort gerade
+    { 3, GERADE,   0 }, // W3 sofort gerade
+    { 6, ABBIEGEN, 0 }, // W6 sofort abbiegen
+    { 7, ABBIEGEN, 0 }  // W7 sofort abbiegen
 };
 
 // --------------------------------------------------
@@ -125,11 +129,11 @@ const FahrstrassenConfig FAHRSTRASSEN_CONFIG[NUM_STW_FS] =
         "Ausloesung an der Westzufahrt; Reset nach Ueberfahrt S3 oder S6"
     },
     {
-        "FS1 Folgefahrt ab S2",
+        "FS1 Folgefahrt ab S2 / odd-even",
         SENSOR_S2,
-        { }, 0,
+        { SENSOR_S6 }, 1,
         FS1_STEPS, static_cast<uint8_t>(sizeof(FS1_STEPS) / sizeof(FS1_STEPS[0])),
-        "Ab der 2. Ausloesung W1 abbiegen und W3 gerade"
+        "Ungerade count: W1 A, W2 G, W3 G, W5 A, W6 G, W7 G, W8 G; gerade count: W5 G; Reset an S6"
     },
     {
         "FS2 Folgefahrt ab S4",
