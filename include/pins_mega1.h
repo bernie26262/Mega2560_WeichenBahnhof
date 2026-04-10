@@ -11,7 +11,6 @@
 constexpr uint8_t PIN_DATA_READY = 51;
 
 // Anzahl aller logisch verwendeten Sensor-Indizes.
-// Derzeit werden nur S0..S10 physisch benutzt.
 // Wichtig: Einzelne Sensoren können mehrere logische Funktionen haben
 // (z.B. Fahrstraße + Bahnhof-Timerstart). Die fachliche Zuordnung erfolgt
 // zentral über die Bahnhofs-Konfiguration weiter unten.
@@ -20,7 +19,7 @@ constexpr uint8_t NUM_SENSORS = 24;
 // SENSOR_PINS[index] -> Arduino-Pin oder -1 (ungenutzt)
 extern const int8_t SENSOR_PINS[NUM_SENSORS];
 
-// Symbolische Indizes für Schaltgleise (S0–S10)
+// Symbolische Indizes für Schaltgleise / Kontakte (S0–S23, soweit belegt
 enum SensorIndex : uint8_t
 {
     SENSOR_S0  = 0,  // Pin 22 - Fahrstraße
@@ -33,7 +32,11 @@ enum SensorIndex : uint8_t
     SENSOR_S7  = 7,  // Pin 31 - Fahrstraße
     SENSOR_S8  = 8,  // Pin 27 - Bhf2/3 Einfahrt
     SENSOR_S9  = 9,  // Pin 35 - Fahrstraße
-    SENSOR_S10 = 10  // Pin 34 - S10 Fahrstraße
+    SENSOR_S10 = 10, // Pin 34 - S10 Fahrstraße
+    SENSOR_S18 = 18, // Pin 29 - Zusatzkontakt
+    SENSOR_S19 = 19, // Pin 26 - Zusatzkontakt
+    SENSOR_S22 = 22, // Pin 30 - Zusatzkontakt
+    SENSOR_S23 = 23  // Pin 36 - Zusatzkontakt
 };
 
 // ---------------------------------------------------------------------------

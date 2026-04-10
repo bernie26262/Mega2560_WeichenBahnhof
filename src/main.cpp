@@ -360,7 +360,7 @@ void loop()
         {
             
 #if DEBUG_M1_TRACE_INPUTS
-            Serial.print(F("[M1] statusChanged: kontakt=0x")); Serial.print(g_payload.kontaktBits, HEX);
+            Serial.print(F("[M1] statusChanged: kontakt=0x")); Serial.print((unsigned long)g_payload.kontaktBits, HEX);
             Serial.print(F(" ist=0x")); Serial.print(g_payload.weichenIstBits, HEX);
             Serial.print(F(" soll=0x")); Serial.print(g_payload.weichenBits, HEX);
             Serial.print(F(" ok=0x")); Serial.print(g_payload.weichenOkBits, HEX);

@@ -21,7 +21,7 @@ public:
     bool isActive(uint8_t index) const;
     uint32_t changedMask() const;
     void clearChangedMask();
-    uint16_t buildKontaktBits() const;
+    uint32_t buildKontaktBits() const;
 
 
     // -------------------------------------------------

@@ -55,6 +55,7 @@ const BahnhofConfig BAHNHOF_CONFIG[BHF_COUNT] =
 // Reset  : S3 oder S6
 // Wirkung:
 //   count >= 0 : W2 gerade, W3 abbiegen
+//                zusätzlich: wenn W0 ist=gerade, dann W1 gerade
 //   count >= 1 : zusätzlich W8 abbiegen
 //   count >= 2 : W8 wieder gerade
 // --------------------------------------------------
@@ -81,10 +82,11 @@ static const WeichenSchaltSchritt FS1_STEPS[] = {};
 // Trigger: S4
 // Reset  : keiner
 // Wirkung:
-//   W1 abbiegen, W7 gerade, W8 gerade
+//   W0 abbiegen, W1 abbiegen, W7 gerade, W8 gerade
 // --------------------------------------------------
 static const WeichenSchaltSchritt FS2_STEPS[] =
 {
+    { 0, ABBIEGEN, 0 }, // W0 sofort abbiegen
     { 1, ABBIEGEN, 0 }, // W1 sofort abbiegen
     { 7, GERADE,   0 }, // W7 sofort gerade
     { 8, GERADE,   0 }  // W8 sofort gerade
@@ -95,10 +97,11 @@ static const WeichenSchaltSchritt FS2_STEPS[] =
 // Trigger: S7
 // Reset  : keiner
 // Wirkung:
-//   W2 abbiegen, W3 gerade, W6 abbiegen, W7 abbiegen
+//   W0 abbiegen, W2 abbiegen, W3 gerade, W6 abbiegen, W7 abbiegen
 // --------------------------------------------------
 static const WeichenSchaltSchritt FS3_STEPS[] =
 {
+    { 0, ABBIEGEN, 0 }, // W0 sofort abbiegen
     { 2, ABBIEGEN, 0 }, // W2 sofort abbiegen
     { 3, GERADE,   0 }, // W3 sofort gerade
     { 6, ABBIEGEN, 0 }, // W6 sofort abbiegen
@@ -117,6 +120,18 @@ static const WeichenSchaltSchritt FS4_STEPS[] =
 {
     { 9, GERADE,   1 }, // W9 ab der 1. Auslösung gerade
     { 9, ABBIEGEN, 3 }  // W9 ab der 3. Auslösung abbiegen
+};
+
+// --------------------------------------------------
+// FS5: Fahrstraße ab S18
+// Trigger: S18
+// Reset  : keiner
+// Wirkung:
+//   W0 gerade
+// --------------------------------------------------
+static const WeichenSchaltSchritt FS5_STEPS[] =
+{
+    { 0, GERADE, 0 } // W0 sofort gerade
 };
 
 const FahrstrassenConfig FAHRSTRASSEN_CONFIG[NUM_STW_FS] =
@@ -155,5 +170,12 @@ const FahrstrassenConfig FAHRSTRASSEN_CONFIG[NUM_STW_FS] =
         { SENSOR_S10 }, 1,
         FS4_STEPS, static_cast<uint8_t>(sizeof(FS4_STEPS) / sizeof(FS4_STEPS[0])),
         "Ostseite mit Reset an S10; W9 abhaengig vom Zaehlerstand"
+    },
+    {
+        "FS5 Folgefahrt ab S18",
+        SENSOR_S18,
+        { }, 0,
+        FS5_STEPS, static_cast<uint8_t>(sizeof(FS5_STEPS) / sizeof(FS5_STEPS[0])),
+        "Sofort W0 gerade"
     }
 };

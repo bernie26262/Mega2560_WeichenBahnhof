@@ -34,6 +34,7 @@ static const char* sensorIndexToName(uint8_t idx)
         case SENSOR_S8:  return "S8";
         case SENSOR_S9:  return "S9";
         case SENSOR_S10: return "S10";
+        case SENSOR_S18: return "S18";
         default:         return "S?";
     }
 }
@@ -135,6 +136,22 @@ void Fahrstrassen::applySteps(uint8_t fs, WeichenHub& weichenHub)
         return;
     }
 
+    // --------------------------------------------------
+    // FS0: Zusatzregel
+    // Bei jeder Überfahrt S0 prüfen:
+    // Wenn W0 IST gerade ist, dann W1 gerade schalten.
+    // --------------------------------------------------
+    if (fs == 0)
+    {
+        if (weichenHub.lastIstGerade(0))
+        {
+#ifdef FS_DEBUG
+            logFsApplyStep(fs, def, 1, true, counter); // W1 GERADE
+#endif
+            weichenHub.enqueueWeiche(1, true);
+        }
+    }
+    
     bool hasCmd[NUM_WEICHEN]     = {false};
     bool finalState[NUM_WEICHEN] = {false};
 

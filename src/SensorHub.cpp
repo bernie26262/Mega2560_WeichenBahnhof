@@ -188,16 +188,16 @@ uint32_t SensorHub::changedMask() const
 {
     return m_changedMask;
 }
-uint16_t SensorHub::buildKontaktBits() const
+uint32_t SensorHub::buildKontaktBits() const
 {
-    // Kontaktbits für S0..S10 (Bit 0 = S0, ...)
-    uint16_t bits = 0;
+    // Kontaktbits für alle physisch belegten Sensoren S0..S23 (Bit 0 = S0, ...)
+    uint32_t bits = 0;
 
-    const uint8_t maxBits = 11; // S0..S10
+    const uint8_t maxBits = NUM_SENSORS; // aktuell S0..S23
     for (uint8_t i = 0; i < maxBits && i < NUM_SENSORS; ++i)
     {
         if (isActive(i))
-            bits |= (1U << i);
+            bits |= (1UL << i);
     }
     return bits;
 }

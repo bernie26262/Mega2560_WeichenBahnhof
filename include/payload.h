@@ -11,7 +11,7 @@ struct Mega1StatusPayload
     uint16_t bootId;
 
     // -------- Sensoren --------
-    uint16_t kontaktBits;
+    uint32_t kontaktBits;
 
     // -------- Weichen --------
     uint16_t weichenBits;       // SOLL-Stellung (1 = GERADE)

@@ -20,7 +20,7 @@ const int8_t SENSOR_PINS[NUM_SENSORS] =
     35, // 9  - S9  Fahrstraße
     34, // 10 - S10 Fahrstraße
 
-    // 11–23: aktuell unbenutzt
+    // 11–23: teilweise Zusatzkontakte belegt
     -1, // 11
     -1, // 12
     -1, // 13
@@ -28,12 +28,12 @@ const int8_t SENSOR_PINS[NUM_SENSORS] =
     -1, // 15
     -1, // 16
     -1, // 17
-    -1, // 18
-    -1, // 19
+    29, // 18 - S18 Zusatzkontakt
+    26, // 19 - S19 Zusatzkontakt
     -1, // 20
     -1, // 21
-    -1, // 22
-    -1  // 23
+    30, // 22 - S22 Zusatzkontakt
+    36  // 23 - S23 Zusatzkontakt
 };
 
 

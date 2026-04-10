@@ -33,7 +33,7 @@ extern const BahnhofConfig BAHNHOF_CONFIG[BHF_COUNT];
 // --------------------------------------------------
 // Fahrstraßen
 // --------------------------------------------------
-constexpr uint8_t NUM_STW_FS = 5;
+constexpr uint8_t NUM_STW_FS = 6;
 
 struct WeichenSchaltSchritt
 {
