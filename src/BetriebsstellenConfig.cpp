@@ -9,34 +9,34 @@ const BahnhofConfig BAHNHOF_CONFIG[BHF_COUNT] =
     {
         "Bhf0",
         SENSOR_S2,
-        SENSOR_S5,
+        SENSOR_S19,
         { SENSOR_S1, SENSOR_S6 }, 2,
         5000,
-        "Einfahrt ueber S2, Timerstart ueber S5, Reset ueber S1 oder S6"
+        "Einfahrt ueber S2, Timerstart ueber S19, Reset ueber S1 oder S6"
     },
     {
         "Bhf1",
         SENSOR_S2,
-        SENSOR_S3,
+        SENSOR_S18,
         { SENSOR_S1, SENSOR_S6 }, 2,
         5000,
-        "Einfahrt ueber S2, Timerstart ueber S3, Reset ueber S1 oder S6"
+        "Einfahrt ueber S2, Timerstart ueber S18, Reset ueber S1 oder S6"
     },
     {
         "Bhf2",
         SENSOR_S8,
-        SENSOR_S9,
+        SENSOR_S22,
         { SENSOR_S10, 255 }, 1,
         5000,
-        "Einfahrt ueber S8, Timerstart ueber S9, Reset ueber S10"
+        "Einfahrt ueber S8, Timerstart ueber S22, Reset ueber S10"
     },
     {
         "Bhf3",
         SENSOR_S8,
-        SENSOR_S10,
+        SENSOR_S23,
         { SENSOR_S10, 255 }, 1,
         5000,
-        "Einfahrt ueber S8, Timerstart ueber S10, Reset ueber S10"
+        "Einfahrt ueber S8, Timerstart ueber S23, Reset ueber S10"
     }
 };
 
