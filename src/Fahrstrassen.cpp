@@ -95,7 +95,8 @@ void Fahrstrassen::applySteps(uint8_t fs, WeichenHub& weichenHub)
 
     // --------------------------------------------------
     // FS1: Trigger S2, alternierend odd/even
-    // odd  count: W1 A, W2 G, W3 G, W5 A, W6 G, W7 G, W8 G
+    // odd  count: W5 A, danach W1 A, W2 G, W3 G, W6 G, W7 G, W8 G
+    //              (W5 muss hier fachlich zwingend als erste Weiche geschaltet werden)
     // even count: W5 G
     //
     // Hinweis:
@@ -110,18 +111,20 @@ void Fahrstrassen::applySteps(uint8_t fs, WeichenHub& weichenHub)
         if (odd)
         {
 #ifdef FS_DEBUG
+            logFsApplyStep(fs, def, 5, false, counter); // W5 ABBIEGEN (muss zuerst)
             logFsApplyStep(fs, def, 1, false, counter); // W1 ABBIEGEN
             logFsApplyStep(fs, def, 2, true,  counter); // W2 GERADE
             logFsApplyStep(fs, def, 3, true,  counter); // W3 GERADE
-            logFsApplyStep(fs, def, 5, false, counter); // W5 ABBIEGEN
             logFsApplyStep(fs, def, 6, true,  counter); // W6 GERADE
             logFsApplyStep(fs, def, 7, true,  counter); // W7 GERADE
             logFsApplyStep(fs, def, 8, true,  counter); // W8 GERADE
 #endif
+            // Wichtig: W5 muss bei S2-getriggerter FS1 als erster Befehl in die Queue,
+            // damit ihre Umschaltung vor allen nachfolgenden Weichen angestoßen wird.
+            weichenHub.enqueueWeiche(5, false);
             weichenHub.enqueueWeiche(1, false);
             weichenHub.enqueueWeiche(2, true);
             weichenHub.enqueueWeiche(3, true);
-            weichenHub.enqueueWeiche(5, false);
             weichenHub.enqueueWeiche(6, true);
             weichenHub.enqueueWeiche(7, true);
             weichenHub.enqueueWeiche(8, true);

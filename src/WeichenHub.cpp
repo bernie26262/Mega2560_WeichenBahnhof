@@ -96,6 +96,40 @@ bool WeichenHub::enqueueWeiche(uint8_t index, bool gerade)
     if (index >= NUM_WEICHEN) return false;
     
     // --------------------------------------------------
+    // Spulenschonung:
+    // Wenn die Weiche laut Rückmelder bereits in Zielstellung steht,
+    // keinen normalen Schaltauftrag erzeugen.
+    // (Selftest ist davon bewusst ausgenommen, da er startPulseCustom()
+    // direkt nutzt und nicht über enqueueWeiche() läuft.)
+    // --------------------------------------------------
+    const bool istGerade = readIstGerade(index);
+    if (istGerade == gerade)
+    {
+#ifdef DEBUG_SERIAL
+        Serial.print(F("[M1WH] skip already-in-position W"));
+        Serial.print(index);
+        Serial.print(F(" ist="));
+        Serial.print(istGerade ? F("GERADE") : F("ABBIEGEN"));
+        Serial.print(F(" soll="));
+        Serial.println(gerade ? F("GERADE") : F("ABBIEGEN"));
+#endif
+
+        m_state[index] = gerade;
+        m_status[index].lastSollGerade = gerade;
+        m_status[index].lastIstGerade  = istGerade;
+        m_status[index].lastCheckOk    = true;
+        m_status[index].everChecked    = true;
+
+        if (WEICHEN_PINS[index].hasRed && WEICHEN_PINS[index].pinRed != 255)
+        {
+            const bool redActive = reductionShouldBeActive(index, istGerade);
+            digitalWrite(WEICHEN_PINS[index].pinRed, redActive ? LOW : HIGH);
+            m_redActive[index] = redActive;
+        }
+        return true;
+    }
+
+    // --------------------------------------------------
     // Schutz gegen doppelte gleiche Zielaufträge
     // --------------------------------------------------
     // Fall A: identischer Auftrag ist gerade aktiv gepulst
@@ -593,6 +627,37 @@ void WeichenHub::update()
     {
         Cmd cmd;
         if (!pop(cmd)) return;
+
+        // --------------------------------------------------
+        // Spulenschonung (zweite Absicherung):
+        // Falls die Weiche seit dem Enqueue inzwischen bereits in der
+        // gewünschten Zielstellung steht, keinen Puls mehr auslösen.
+        // --------------------------------------------------
+        const bool istGerade = readIstGerade(cmd.index);
+        if (istGerade == cmd.gerade)
+        {
+#ifdef DEBUG_SERIAL
+            Serial.print(F("[M1WH] skip pulse W"));
+            Serial.print(cmd.index);
+            Serial.print(F(" already "));
+            Serial.println(istGerade ? F("GERADE") : F("ABBIEGEN"));
+#endif
+
+            m_state[cmd.index] = cmd.gerade;
+            m_status[cmd.index].lastSollGerade = cmd.gerade;
+            m_status[cmd.index].lastIstGerade  = istGerade;
+            m_status[cmd.index].lastCheckOk    = true;
+            m_status[cmd.index].everChecked    = true;
+
+            const WPins& p = WEICHEN_PINS[cmd.index];
+            if (p.hasRed && p.pinRed != 255)
+            {
+                const bool redActive = reductionShouldBeActive(cmd.index, istGerade);
+                digitalWrite(p.pinRed, redActive ? LOW : HIGH);
+                m_redActive[cmd.index] = redActive;
+            }
+            continue;
+        }
 
         if ((int32_t)(now - m_cooldownUntil[cmd.index]) >= 0)
         {

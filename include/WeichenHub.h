@@ -78,6 +78,13 @@ public:
     void pollRueckmelders(uint32_t now);
 
     // Commands
+    //
+    // WICHTIG (Spulenschonung):
+    // Normale Schaltauftraege erzeugen nur dann einen tatsaechlichen
+    // Schaltimpuls, wenn die aktuelle Ist-Stellung von der Zielstellung
+    // abweicht. Steht die Weiche bereits korrekt, wird kein Puls ausgeloest.
+    // Der Selbsttest ist davon ausgenommen und nutzt eigene Pulsfunktionen.
+    //
     bool enqueueWeiche(uint8_t index, bool gerade);
 
     // Alle Weichen auf definierte Grundstellung (siehe WEICHEN_GRUNDSTELLUNG)

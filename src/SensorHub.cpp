@@ -126,12 +126,19 @@ void SensorHub::update()
                 if (isS0(i)) logS0EntryAccepted(now, m_db[i].unblockAtMs);
 #endif
             }
-#if DEBUG_M1_SENSOR_S0_LOG
+
             else
             {
+                // Erneuter Kontakt innerhalb der Sperrzeit:
+                // kein neuer Trigger, aber Sperrzeit ab jetzt neu starten.
+                // Damit wird das Schaltgleis bei langen Zügen erst nach der
+                // letzten Achse wieder für einen neuen Trigger freigegeben.
+                m_db[i].unblockAtMs = now + SENSOR_TRAIN_DEBOUNCE_MS;
+
+#if DEBUG_M1_SENSOR_S0_LOG
                 if (isS0(i)) logS0EntryBlocked(now, m_db[i].unblockAtMs);
-            }
 #endif
+            }        
         }
 
         // EXIT: letzte Achse (LOW -> HIGH), NO trigger

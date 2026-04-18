@@ -2,7 +2,8 @@
 #include <Arduino.h>
 #include "pins_mega1.h"
 
-// Zug-Entprellzeit pro Sensor (erste Achse zählt)
+// Zug-Entprellzeit pro Sensor.
+// Jeder erneute Kontakt innerhalb der Sperrzeit startet den Timer neu.
 constexpr uint32_t SENSOR_TRAIN_DEBOUNCE_MS = 1500;
 // Glitch-Filter: Rohwert muss so lange stabil sein, bevor wir ihn als "gültig" werten.
 // (Schützt gegen kurze EMV-Spikes / Übersprechen bei offenen/hochohmigen Leitungen)

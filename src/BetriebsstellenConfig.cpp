@@ -72,7 +72,9 @@ static const WeichenSchaltSchritt FS0_STEPS[] =
 // Trigger: S2
 // Reset  : S6
 // Wirkung:
-//   ungerade count : W1 A, W2 G, W3 G, W5 A, W6 G, W7 G, W8 G
+// Wird in Fahrstrassen.cpp per Sonderlogik umgesetzt.
+// WICHTIG: Bei S2-getriggerter FS1 muss W5 als erste Weiche geschaltet werden.
+//   ungerade count : W5 A, danach W1 A, W2 G, W3 G, W6 G, W7 G, W8 G
 //   gerade count   : W5 G
 // --------------------------------------------------
 static const WeichenSchaltSchritt FS1_STEPS[] = {};
@@ -148,7 +150,7 @@ const FahrstrassenConfig FAHRSTRASSEN_CONFIG[NUM_STW_FS] =
         SENSOR_S2,
         { SENSOR_S6 }, 1,
         FS1_STEPS, static_cast<uint8_t>(sizeof(FS1_STEPS) / sizeof(FS1_STEPS[0])),
-        "Ungerade count: W1 A, W2 G, W3 G, W5 A, W6 G, W7 G, W8 G; gerade count: W5 G; Reset an S6"
+        "Ungerade count: W5 A zuerst, danach W1 A, W2 G, W3 G, W6 G, W7 G, W8 G; gerade count: W5 G; Reset an S6"
     },
     {
         "FS2 Folgefahrt ab S4",
