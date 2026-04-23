@@ -456,9 +456,11 @@ void i2cSlaveUpdateSnapshots()
         m1WarningMask |= 0x01;
     if (m1WarningMask != 0)
         st.flags |= SYS_WARNING_PRESENT;
-    st.reserved = (uint16_t)m1WarningMask;
-    st.safetyErrorType  = 0;
-    st.safetyErrorIndex = 0;
+    st.reserved        = (uint16_t)m1WarningMask;
+    st.errorCause      = 0;
+    st.errorIndex      = 0;
+    st.errorDetailCode = 0;
+    st.reservedErr     = 0;
 
     // -------- RELAYS snapshot (change-detect; seq increments only on change) --------
     Mega1DiagRelaysV1 r{};

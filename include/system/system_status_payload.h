@@ -1,7 +1,7 @@
 #pragma once
 #include <stdint.h>
 
-static constexpr uint8_t SYSTEM_STATUS_VERSION = 3;
+static constexpr uint8_t SYSTEM_STATUS_VERSION = 4;
 
 enum SystemNodeId : uint8_t
 {
@@ -20,7 +20,7 @@ enum SystemStatusFlags : uint16_t
     SYS_WARNING_PRESENT  = 1 << 4,
 };
 
-// v3 (kompakt, <=32 Bytes) — PACKED für stabile I2C-Übertragung
+// v4 (kompakt, <=32 Bytes) — PACKED für stabile I2C-Übertragung
 struct __attribute__((packed)) SystemStatus
 {
     uint8_t  version;
@@ -32,8 +32,10 @@ struct __attribute__((packed)) SystemStatus
 
     uint16_t flags;
 
-    uint8_t  safetyErrorType;
-    uint8_t  safetyErrorIndex;
+    uint8_t  errorCause;
+    uint8_t  errorIndex;
+    uint8_t  errorDetailCode;
+    uint8_t  reservedErr;
 
     uint16_t blockOccupiedMask;
 
@@ -49,4 +51,4 @@ struct __attribute__((packed)) SystemStatus
     uint16_t reserved;
 };
 
-static_assert(sizeof(SystemStatus) == 26, "SystemStatus must be 26 bytes (packed)");
+static_assert(sizeof(SystemStatus) == 28, "SystemStatus must be 28 bytes (packed)");
