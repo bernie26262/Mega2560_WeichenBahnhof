@@ -45,6 +45,9 @@ public:
     // Manuelle Freigabe aus WebUI: Strom wieder einschalten, Timer stoppen
     void manualRelease(uint8_t bhf);
 
+    // Expliziter Auto-Reset
+    void resetAll();
+
     // Letzter Bahnhof, bei dem ein Ereignis passiert ist (0..3, 255 = keiner)
     uint8_t lastEventBhf() const { return m_lastEventBhf; }
 

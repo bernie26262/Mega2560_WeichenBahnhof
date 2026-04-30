@@ -17,6 +17,8 @@ public:
                             WeichenHub& weichenHub);
 
     uint8_t getCounter(uint8_t fs) const;
+    void    setCounter(uint8_t fs, uint8_t value);
+    void    resetAllCounters();
     int8_t  activeRoute() const { return m_activeRoute; }
 
 private:

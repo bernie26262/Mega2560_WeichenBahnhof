@@ -132,6 +132,18 @@ static Mega1StatusPayload s_lastPayload; // für Change-Detection
 volatile bool g_payloadDirty = false;
 uint16_t g_bootId = 0;
 
+void mega1SetPending(uint16_t bits);
+
+void mega1AutoReset()
+{
+    fahrstrassen.resetAllCounters();
+    bfController.resetAll();
+    (void)weichenHub.enqueueGrundstellung();
+    g_payloadDirty = true;
+    mega1SetPending(M1_PEND_STATUS | M1_PEND_DIAG);
+}
+
+
 // ---------------------------------------------------------------------------
 // Hilfsfunktionen
 // ---------------------------------------------------------------------------
@@ -183,6 +195,7 @@ void setup()
     modusController.begin();
     trackPowerHub.begin();
     bfController.setPowerHub(&trackPowerHub);
+
 
     // Force first stable DIAG after inputs are settled
     mega1SetPending(M1_PEND_DIAG);

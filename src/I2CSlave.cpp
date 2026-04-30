@@ -60,6 +60,7 @@ static uint8_t s_cmdResponseOk      = 1;   // 1 = OK, 0 = FAIL
 // Pending/DRDY Steuerung (implementiert in main.cpp)
 extern void mega1SetPending(uint16_t bits);
 extern void mega1ClearPending(uint16_t bits);
+extern void mega1AutoReset();
 extern uint16_t mega1GetPending();
 
 // Für read-only Snapshot-Kommandos (ohne 1-Byte ACK davor)
@@ -214,6 +215,13 @@ void i2cOnReceive(int len)
         case CMD_START_SELFTEST:
         {
             ack = qPush(CMD_START_SELFTEST, 0, 0) ? 1 : 0;
+            wantAck = true;
+            break;
+        }
+
+        case CMD_AUTO_RESET:
+        {
+            ack = qPush(CMD_AUTO_RESET, 0, 0) ? 1 : 0;
             wantAck = true;
             break;
         }
@@ -375,6 +383,13 @@ void i2cSlaveProcessQueue()
 
             case CMD_START_SELFTEST:
                 (void)weichenHub.startSelftest();
+                g_payloadDirty = true;
+                mega1SetPending(M1_PEND_STATUS | M1_PEND_DIAG);
+                break;
+
+            case CMD_AUTO_RESET:
+                if (modusController.isAuto() && !weichenHub.isSelftestActive())
+                    mega1AutoReset();
                 g_payloadDirty = true;
                 mega1SetPending(M1_PEND_STATUS | M1_PEND_DIAG);
                 break;

@@ -27,6 +27,9 @@ constexpr uint8_t CMD_SET_BHF_POWER = 0x06; // payload: [cmd,bhf(0..3),on(0/1)]
 // Weichen-Selbsttest starten (optional/explicit; payload: [cmd])
 constexpr uint8_t CMD_START_SELFTEST = 0x07;
 
+// Expliziter Auto-Reset: Fahrstraßen-Zähler nullen, Bahnhöfe resetten, Weichen-Grundstellung
+constexpr uint8_t CMD_AUTO_RESET     = 0x08;
+
 // Diagnose (read-only snapshots, <=32B)
 constexpr uint8_t CMD_GET_DIAG     = 0xD1; // Mega1DiagV1
 constexpr uint8_t CMD_GET_RELAYS   = 0xD2; // Mega1DiagRelaysV1 (Outputs/Relais read-only)

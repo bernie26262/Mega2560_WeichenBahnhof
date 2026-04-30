@@ -88,6 +88,28 @@ uint8_t Fahrstrassen::getCounter(uint8_t fs) const
 }
 
 // --------------------------------------------------
+void Fahrstrassen::setCounter(uint8_t fs, uint8_t value)
+{
+    if (fs >= NUM_STW_FS) return;
+    m_fsState[fs].counter = value;
+    m_fsState[fs].active  = (value != 0);
+    g_payload.fsCounter[fs] = value;
+    if (value == 0 && m_activeRoute == (int8_t)fs)
+        m_activeRoute = -1;
+    g_payloadDirty = true;
+}
+
+// --------------------------------------------------
+void Fahrstrassen::resetAllCounters()
+{
+    for (uint8_t fs = 0; fs < NUM_STW_FS; ++fs)
+        setCounter(fs, 0);
+    m_activeRoute = -1;
+    g_payload.activeRoute = -1;
+    g_payloadDirty = true;
+}
+
+// --------------------------------------------------
 void Fahrstrassen::applySteps(uint8_t fs, WeichenHub& weichenHub)
 {
     const FahrstrassenConfig& def = FAHRSTRASSEN_CONFIG[fs];
@@ -196,10 +218,7 @@ void Fahrstrassen::handleSensorEvents(const SensorHub& hub,
             uint8_t rIdx = def.resetSensors[r];
             if ((changed & (1UL << rIdx)) && hub.isActive(rIdx))
             {
-                m_fsState[fs].counter = 0;
-                m_fsState[fs].active  = false;
-
-                g_payload.fsCounter[fs] = 0;
+                setCounter(fs, 0);
                 g_payload.lastResetSensor = rIdx;
                 g_payloadDirty = true;
 

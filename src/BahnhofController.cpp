@@ -191,3 +191,18 @@ void BahnhofController::manualRelease(uint8_t bhf)
     // occupied bleibt unangetastet – kann über separate Logik/Fahrstraße
     // oder späteren Ausfahrtsmelder wieder auf false gesetzt werden.
 }
+void BahnhofController::resetAll()
+{
+    for (uint8_t bhf = 0; bhf < BHF_COUNT; ++bhf)
+    {
+        BahnhofState& st = m_bhf[bhf];
+        st.occupied      = false;
+        st.powerOn       = true;
+        st.entryLatched  = false;
+        st.timerRunning  = false;
+        st.timerStartMs  = 0;
+        st.timerDuration = BAHNHOF_CONFIG[bhf].timerDurationMs;
+        if (m_powerHub) m_powerHub->setPower(bhf, true);
+    }
+    m_lastEventBhf = 255;
+}

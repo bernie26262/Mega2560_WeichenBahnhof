@@ -21,7 +21,7 @@
 // ==================================================
 // Konfiguration
 // ==================================================
-#define WEICHE_QUEUE_SIZE   8
+#define WEICHE_QUEUE_SIZE   16
 #define WEICHE_PULSE_MS     500
 #define WEICHE_COOLDOWN_MS  500
 

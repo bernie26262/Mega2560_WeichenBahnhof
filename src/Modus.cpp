@@ -1,18 +1,10 @@
 #include "Modus.h"
-#include "WeichenHub.h"
-#include "pins_mega1.h"
-
-// WeichenHub ist global (wie im restlichen Projekt)
-extern WeichenHub weichenHub;
 
 void ModusController::begin()
 {
     // Startup-Freigabe wie Mega2:
     // Bootet in MANUELL. AUTOMATIK wird später per ESP (CMD_SET_MODE) gesetzt,
     // sobald Startup-Checklist/Selbsttests erledigt sind.
-    //
-    // Dadurch wird die Grundstellung (MANUELL->AUTOMATIK) garantiert erst
-    // nach dem Benutzer-Flow gefahren.
     m_mode = BetriebsModus::MANUELL;
 }
 
@@ -24,16 +16,9 @@ void ModusController::setMode(BetriebsModus newMode)
 
     // --------------------------------------------------
     // Übergang: MANUELL -> AUTOMATIK
-    // → alle Weichen in definierte Grundstellung fahren
+    // → bewusst nichts tun. Auto ist nur noch ein Moduswechsel.
+    //    Grundstellung/Zähler-Reset erfolgt ausschließlich über Auto Reset.
     // --------------------------------------------------
-    if (m_mode == BetriebsModus::MANUELL &&
-        newMode == BetriebsModus::AUTOMATIK)
-    {
-        // Grundstellung genau EINMAL anstoßen.
-        // Die Filterung "nur wenn Ist != Grundstellung" erfolgt in enqueueGrundstellung().
-        (void)weichenHub.enqueueGrundstellung();
-        
-    }
 
     // --------------------------------------------------
     // Übergang: AUTOMATIK -> MANUELL
